@@ -81,4 +81,16 @@ export const mitItemsRouter = new Elysia({ prefix: "/mit-items" })
     } catch (e: any) {
       return err(e.message);
     }
+  })
+  .post("/:id/deploy", async ({ params, body }: any) => {
+    try {
+      const mitId = Number(params.id);
+      const [mit] = await db.select().from(mitItems).where(eq(mitItems.id, mitId));
+      if (!mit) return err("MIT item not found");
+      await db.update(mitItems).set({ currentStatus: "deployed", deployedAt: new Date(), updatedAt: new Date() }).where(eq(mitItems.id, mitId));
+      await db.insert(mitStatusHistory).values({ mitItemId: mitId, oldStatus: mit.currentStatus, newStatus: "deployed", changedBy: body.userId, remark: body.note ?? null });
+      return ok({ deployed: true });
+    } catch (e: any) {
+      return err(e.message);
+    }
   });

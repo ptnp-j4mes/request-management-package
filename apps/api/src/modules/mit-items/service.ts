@@ -56,6 +56,12 @@ export async function acceptMitItem(mitId: number, userId: number, action: "acce
       .set({ assignmentStatus: "accepted", acceptedAt: new Date() })
       .where(and(eq(mitStepAssignments.mitItemId, mitId), eq(mitStepAssignments.assignedUserId, userId)));
     await db.insert(mitStatusHistory).values({ mitItemId: mitId, oldStatus: mit.currentStatus, newStatus: "accepted", changedBy: userId });
+  } else if (action === "reject") {
+    await db.update(mitItems).set({ currentStatus: "assigned", updatedAt: new Date() }).where(eq(mitItems.id, mitId));
+    await db.update(mitStepAssignments)
+      .set({ assignmentStatus: "assigned" })
+      .where(and(eq(mitStepAssignments.mitItemId, mitId), eq(mitStepAssignments.assignedUserId, userId)));
+    await db.insert(mitStatusHistory).values({ mitItemId: mitId, oldStatus: mit.currentStatus, newStatus: "assigned", changedBy: userId, remark: note ?? "Rejected" });
   }
 }
 
@@ -93,9 +99,11 @@ export async function submitMitItem(mitId: number, fromUserId: number, toUserId:
   }).returning();
 
   // Determine new status based on target step
+  // MA (terminal) means entering maintenance — not yet deployed
+  // deployed is a separate explicit action after release
   const waitingStatus = toStep.stepCode === "QA" ? "waiting_test"
     : toStep.stepCode === "UAT" ? "waiting_uat"
-    : toStep.isTerminal ? "deployed"
+    : toStep.isTerminal ? "in_ma"
     : "assigned";
 
   // Update snapshot on mit_items
@@ -104,7 +112,6 @@ export async function submitMitItem(mitId: number, fromUserId: number, toUserId:
     currentStepId: toStepId,
     currentStepCode: toStep.stepCode,
     currentStatus: waitingStatus,
-    deployedAt: toStep.isTerminal ? new Date() : undefined,
     updatedAt: new Date(),
   }).where(eq(mitItems.id, mitId));
 

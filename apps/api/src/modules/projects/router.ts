@@ -2,7 +2,7 @@ import { Elysia } from "elysia";
 import { db } from "../../lib/db";
 import { projects, projectMembers, users } from "@rm/db";
 import { ok, err } from "../../lib/response";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export const projectsRouter = new Elysia({ prefix: "/projects" })
   .get("/", async () => {
@@ -39,6 +39,9 @@ export const projectsRouter = new Elysia({ prefix: "/projects" })
   })
   .delete("/:id/members/:userId", async ({ params }) => {
     await db.delete(projectMembers)
-      .where(eq(projectMembers.projectId, Number(params.id)));
+      .where(and(
+        eq(projectMembers.projectId, Number(params.id)),
+        eq(projectMembers.userId, Number(params.userId)),
+      ));
     return ok({ deleted: true });
   });

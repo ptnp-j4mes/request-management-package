@@ -5,7 +5,8 @@ import { eq, and, inArray, lt, notInArray, isNotNull, sql } from "drizzle-orm";
 const ON_HAND_STATUSES = ["assigned", "accepted", "in_progress", "testing", "uat_in_progress"];
 const WAITING_TEST_STATUSES = ["assigned", "waiting_test", "accepted", "testing"];
 const WAITING_UAT_STATUSES = ["assigned", "waiting_uat", "accepted", "uat_in_progress"];
-const DONE_STATUSES = ["done", "closed", "cancelled", "deployed"];
+// in_ma = entered MA step (post-go-live support); deployed = explicitly marked released
+const DONE_STATUSES = ["done", "closed", "cancelled", "deployed", "in_ma"];
 
 export async function getWorkloadByUser() {
   const allUsers = await db.select().from(users).where(eq(users.isActive, true));
@@ -21,6 +22,7 @@ export async function getWorkloadByUser() {
       waitingTest: mine.filter((m) => m.currentStepCode === "QA" && WAITING_TEST_STATUSES.includes(m.currentStatus ?? "")).length,
       waitingUat: mine.filter((m) => m.currentStepCode === "UAT" && WAITING_UAT_STATUSES.includes(m.currentStatus ?? "")).length,
       deployed: mine.filter((m) => m.currentStatus === "deployed").length,
+      inMa: mine.filter((m) => m.currentStatus === "in_ma").length,
     };
   });
 }
@@ -39,6 +41,7 @@ export async function getWorkloadByProject() {
       waitingTest: mine.filter((m) => m.currentStepCode === "QA" && WAITING_TEST_STATUSES.includes(m.currentStatus ?? "")).length,
       waitingUat: mine.filter((m) => m.currentStepCode === "UAT" && WAITING_UAT_STATUSES.includes(m.currentStatus ?? "")).length,
       deployed: mine.filter((m) => m.currentStatus === "deployed").length,
+      inMa: mine.filter((m) => m.currentStatus === "in_ma").length,
       total: mine.length,
     };
   });
