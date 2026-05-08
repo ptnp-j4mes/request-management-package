@@ -1,0 +1,13 @@
+{
+  "extends": "../../packages/config/tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "paths": {
+      "@rm/db": ["../../packages/db/src/index.ts"],
+      "@rm/types": ["../../packages/types/src/index.ts"],
+      "@rm/utils": ["../../packages/utils/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

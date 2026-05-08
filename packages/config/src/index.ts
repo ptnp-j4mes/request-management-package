@@ -1,0 +1,10 @@
+export const tsconfig = {
+  compilerOptions: {
+    target: "ES2022",
+    module: "ESNext",
+    moduleResolution: "bundler",
+    strict: true,
+    skipLibCheck: true,
+    esModuleInterop: true,
+  },
+};
