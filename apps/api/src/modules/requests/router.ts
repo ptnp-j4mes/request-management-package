@@ -54,7 +54,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
 
     const isRestricted =
       user.roles.includes("REQUESTER") &&
-      !user.roles.some((r: string) => ["ADMIN", "IT_MANAGER", "BA"].includes(r));
+      !user.roles.some((r: string) => ["ADMIN", "IT_MANAGER", "BA", "FULLSTACK"].includes(r));
     if (isRestricted) conditions.push(eq(requests.requesterUserId, user.id));
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -102,7 +102,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
   //    does not bleed onto workflow action routes below ──
   .use(
     new Elysia()
-      .use(authorize(["APPROVER", "BA", "IT_MANAGER", "ADMIN"]))
+      .use(authorize(["APPROVER", "BA", "FULLSTACK", "IT_MANAGER", "ADMIN"]))
       .patch("/:id", async ({ params, body, user }: any) => {
         const existing = await getRequest(Number(params.id));
         if (!existing) return err("Request not found");
@@ -153,12 +153,13 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     return ok(updated);
   })
 
-  // approve — APPROVER (own dept), IT_MANAGER, ADMIN
+  // approve — APPROVER, FULLSTACK, IT_MANAGER, ADMIN
   .post("/:id/approve", async ({ params, user, set }: any) => {
     if (
       !user.roles.includes("ADMIN") &&
       !user.roles.includes("IT_MANAGER") &&
-      !user.roles.includes("APPROVER")
+      !user.roles.includes("APPROVER") &&
+      !user.roles.includes("FULLSTACK")
     ) {
       set.status = 403;
       return err("Insufficient permissions");
@@ -173,14 +174,15 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     return ok(updated);
   })
 
-  // reject — APPROVER, BA, IT_MANAGER, ADMIN
+  // reject — APPROVER, BA, FULLSTACK, QA, IT_MANAGER, ADMIN
   .post("/:id/reject", async ({ params, body, user, set }: any) => {
     if (
       !user.roles.includes("ADMIN") &&
       !user.roles.includes("IT_MANAGER") &&
       !user.roles.includes("APPROVER") &&
       !user.roles.includes("BA") &&
-      !user.roles.includes("QA")
+      !user.roles.includes("QA") &&
+      !user.roles.includes("FULLSTACK")
     ) {
       set.status = 403;
       return err("Insufficient permissions");
@@ -274,6 +276,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     if (
       !user.roles.includes("ADMIN") &&
       !user.roles.includes("IT_MANAGER") &&
+      !user.roles.includes("FULLSTACK") &&
       req.devOwnerId !== user.id
     ) {
       set.status = 403;
@@ -300,6 +303,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     if (
       !user.roles.includes("ADMIN") &&
       !user.roles.includes("IT_MANAGER") &&
+      !user.roles.includes("FULLSTACK") &&
       req.devOwnerId !== user.id
     ) {
       set.status = 403;
@@ -309,12 +313,13 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     return ok(updated);
   })
 
-  // qa-pass — QA (qaOwner), IT_MANAGER, ADMIN
+  // qa-pass — QA (qaOwner), FULLSTACK, IT_MANAGER, ADMIN
   .post("/:id/qa-pass", async ({ params, user, set }: any) => {
     if (
       !user.roles.includes("ADMIN") &&
       !user.roles.includes("IT_MANAGER") &&
-      !user.roles.includes("QA")
+      !user.roles.includes("QA") &&
+      !user.roles.includes("FULLSTACK")
     ) {
       set.status = 403;
       return err("Insufficient permissions");
@@ -325,6 +330,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     if (
       !user.roles.includes("ADMIN") &&
       !user.roles.includes("IT_MANAGER") &&
+      !user.roles.includes("FULLSTACK") &&
       req.qaOwnerId !== user.id
     ) {
       set.status = 403;
@@ -334,12 +340,13 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     return ok(updated);
   })
 
-  // qa-fail — QA (qaOwner), IT_MANAGER, ADMIN
+  // qa-fail — QA (qaOwner), FULLSTACK, IT_MANAGER, ADMIN
   .post("/:id/qa-fail", async ({ params, body, user, set }: any) => {
     if (
       !user.roles.includes("ADMIN") &&
       !user.roles.includes("IT_MANAGER") &&
-      !user.roles.includes("QA")
+      !user.roles.includes("QA") &&
+      !user.roles.includes("FULLSTACK")
     ) {
       set.status = 403;
       return err("Insufficient permissions");
@@ -350,6 +357,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     if (
       !user.roles.includes("ADMIN") &&
       !user.roles.includes("IT_MANAGER") &&
+      !user.roles.includes("FULLSTACK") &&
       req.qaOwnerId !== user.id
     ) {
       set.status = 403;
@@ -380,7 +388,8 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     const hasRole =
       user.roles.includes("ADMIN") ||
       user.roles.includes("IT_MANAGER") ||
-      user.roles.includes("APPROVER");
+      user.roles.includes("APPROVER") ||
+      user.roles.includes("FULLSTACK");
 
     if (!isOwner && !hasRole) {
       set.status = 403;

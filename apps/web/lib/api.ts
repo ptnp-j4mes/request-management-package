@@ -55,6 +55,19 @@ export const requestsApi = {
   get: (id: number) => api.get<any>(`/requests/${id}`),
   create: (body: any) => api.post<any>("/requests", body),
   update: (id: number, body: any) => api.patch<any>(`/requests/${id}`, body),
+  // Workflow transitions
+  submit:          (id: number) => api.post<any>(`/requests/${id}/submit`, {}),
+  approve:         (id: number) => api.post<any>(`/requests/${id}/approve`, {}),
+  reject:          (id: number, reason: string) => api.post<any>(`/requests/${id}/reject`, { reason }),
+  assignBA:        (id: number, baUserId: number) => api.post<any>(`/requests/${id}/assign-ba`, { baUserId }),
+  assignDev:       (id: number, devUserId: number) => api.post<any>(`/requests/${id}/assign-dev`, { devUserId }),
+  assignQA:        (id: number, qaUserId: number) => api.post<any>(`/requests/${id}/assign-qa`, { qaUserId }),
+  startDevelopment:(id: number) => api.post<any>(`/requests/${id}/start-development`, {}),
+  readyForQA:      (id: number) => api.post<any>(`/requests/${id}/ready-for-qa`, {}),
+  qaPass:          (id: number) => api.post<any>(`/requests/${id}/qa-pass`, {}),
+  qaFail:          (id: number, reason: string) => api.post<any>(`/requests/${id}/qa-fail`, { reason }),
+  uatApprove:      (id: number) => api.post<any>(`/requests/${id}/uat-approve`, {}),
+  close:           (id: number) => api.post<any>(`/requests/${id}/close`, {}),
 };
 
 export const mitApi = {

@@ -13,6 +13,8 @@ type AuthContextValue = {
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
+  hasRole: (role: string) => boolean;
+  hasAnyRole: (roles: string[]) => boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -46,6 +48,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     document.cookie = `${COOKIE_NAME}=${newToken}; path=/; max-age=${15 * 60}; SameSite=Strict`;
   }, []);
 
+  const hasRole = useCallback((role: string) => user?.roles.includes(role) ?? false, [user]);
+  const hasAnyRole = useCallback((roles: string[]) => roles.some((r) => user?.roles.includes(r)) ?? false, [user]);
+
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
@@ -56,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token && !!user, isLoading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token && !!user, isLoading, hasRole, hasAnyRole }}>
       {children}
     </AuthContext.Provider>
   );

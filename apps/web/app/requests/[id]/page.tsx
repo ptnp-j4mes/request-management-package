@@ -1,6 +1,7 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import { requestsApi } from "../../../lib/api";
+import { RequestActions } from "../../../components/requests/RequestActions";
 import Link from "next/link";
 
 const typeColors: Record<string, string> = {
@@ -14,6 +15,7 @@ export default function RequestDetailPage({ params }: { params: { id: string } }
   const { data, isLoading } = useQuery({
     queryKey: ["request", params.id],
     queryFn: () => requestsApi.get(Number(params.id)),
+    refetchOnWindowFocus: true,
   });
   const request = data?.data;
 
@@ -55,6 +57,9 @@ export default function RequestDetailPage({ params }: { params: { id: string } }
           <p className="text-sm text-slate-600 whitespace-pre-wrap">{request.description}</p>
         </div>
       </div>
+
+      {/* Workflow Actions */}
+      <RequestActions request={request} />
 
       {/* Comments */}
       <div className="bg-white rounded-lg border shadow-sm p-6">

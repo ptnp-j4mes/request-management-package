@@ -43,7 +43,7 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:9898
     ports:
-      - "9899:3000"
+      - "9899:9899"
     depends_on:
       - api
 

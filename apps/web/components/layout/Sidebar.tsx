@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "../ui/cn";
@@ -8,17 +9,24 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/requests", label: "Requests", icon: Inbox },
-  { href: "/mit", label: "MIT Board", icon: ClipboardList },
-  { href: "/uat", label: "UAT", icon: TestTube },
-  { href: "/ma", label: "MA Coverage", icon: Shield },
-  { href: "/workload", label: "Workload", icon: Zap },
-  { href: "/performance", label: "Performance", icon: BarChart3 },
-  { href: "/bot", label: "Bot Sessions", icon: Bot },
-  { href: "/admin", label: "Admin", icon: Settings },
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  roles?: string[]; // undefined = visible to all authenticated users
+};
+
+const navItems: NavItem[] = [
+  { href: "/",            label: "Dashboard",    icon: LayoutDashboard },
+  { href: "/projects",    label: "Projects",     icon: FolderKanban },
+  { href: "/requests",    label: "Requests",     icon: Inbox },
+  { href: "/mit",         label: "MIT Board",    icon: ClipboardList },
+  { href: "/uat",         label: "UAT",          icon: TestTube },
+  { href: "/ma",          label: "MA Coverage",  icon: Shield },
+  { href: "/workload",    label: "Workload",     icon: Zap,      roles: ["BA", "FULLSTACK", "IT_MANAGER", "ADMIN"] },
+  { href: "/performance", label: "Performance",  icon: BarChart3, roles: ["IT_MANAGER", "ADMIN"] },
+  { href: "/bot",         label: "Bot Sessions", icon: Bot,      roles: ["IT_MANAGER", "ADMIN", "BA", "FULLSTACK"] },
+  { href: "/admin",       label: "Admin",        icon: Settings, roles: ["ADMIN"] },
 ];
 
 export function Sidebar() {
@@ -34,24 +42,26 @@ export function Sidebar() {
         <p className="text-xs text-slate-400 mt-0.5">Workflow & Tracking</p>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                active
-                  ? "bg-slate-700 text-white"
-                  : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {label}
-            </Link>
-          );
-        })}
+        {navItems
+          .filter((item) => !item.roles || item.roles.some((r) => user?.roles.includes(r)))
+          .map(({ href, label, icon: Icon }) => {
+            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                  active
+                    ? "bg-slate-700 text-white"
+                    : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {label}
+              </Link>
+            );
+          })}
       </nav>
       <div className="px-4 py-4 border-t border-slate-700 space-y-3">
         {isAuthenticated && user && (
