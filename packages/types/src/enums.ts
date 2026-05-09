@@ -44,6 +44,22 @@ export const BotRequestStatus = z.enum(["queued", "processing", "completed", "fa
 export const BotMessageType = z.enum(["user", "bot", "system"]);
 export const SyncStatus = z.enum(["pending", "completed", "failed"]);
 
+export const MeetingBotStatus = z.enum(["SCHEDULED","WAITING_TO_JOIN","JOINING","IN_MEETING","LEFT","FAILED","CANCELLED"]);
+export const MeetingRecordingStatus = z.enum(["PENDING","RECORDING","RECORDED","DOWNLOADING","DOWNLOADED","FAILED"]);
+export const MeetingSummaryStatus = z.enum(["PENDING","TRANSCRIBING","SUMMARIZING","COMPLETED","FAILED"]);
+export const GoogleBotAccountStatus = z.enum(["AVAILABLE","IN_MEETING","BUSY","LOGIN_REQUIRED","TWO_FACTOR_REQUIRED","DISABLED","ERROR"]);
+export const MeetingSyncMode = z.enum(["OFF","ONE_WAY_PROJECT_TO_GOOGLE","ONE_WAY_GOOGLE_TO_PROJECT","TWO_WAY"]);
+export const MeetingConflictPolicy = z.enum(["PROJECT_WINS","GOOGLE_WINS","LATEST_UPDATE_WINS","MANUAL_REVIEW"]);
+export const MeetingAccountSelectionPolicy = z.enum(["MANUAL","DEFAULT_ACCOUNT","LEAST_BUSY","ROUND_ROBIN","SAME_DEPARTMENT","SAME_PROJECT_OWNER"]);
+
+export type MeetingBotStatus = z.infer<typeof MeetingBotStatus>;
+export type MeetingRecordingStatus = z.infer<typeof MeetingRecordingStatus>;
+export type MeetingSummaryStatus = z.infer<typeof MeetingSummaryStatus>;
+export type GoogleBotAccountStatus = z.infer<typeof GoogleBotAccountStatus>;
+export type MeetingSyncMode = z.infer<typeof MeetingSyncMode>;
+export type MeetingConflictPolicy = z.infer<typeof MeetingConflictPolicy>;
+export type MeetingAccountSelectionPolicy = z.infer<typeof MeetingAccountSelectionPolicy>;
+
 export type ProjectStatus = z.infer<typeof ProjectStatus>;
 export type RequestType = z.infer<typeof RequestType>;
 export type RequestStatus = z.infer<typeof RequestStatus>;

@@ -9,3 +9,4 @@ export * from "./workflow";
 export * from "./mit";
 export * from "./bot";
 export * from "./performance";
+export * from "./meetings";

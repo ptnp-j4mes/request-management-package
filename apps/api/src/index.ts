@@ -12,6 +12,7 @@ import { mitItemsRouter } from "./modules/mit-items/router";
 import { workloadRouter } from "./modules/workload/router";
 import { botRouter } from "./modules/bot/router";
 import { performanceRouter } from "./modules/performance/router";
+import { meetingsRouter } from "./modules/meetings/router";
 
 const app = new Elysia()
   .use(cors({
@@ -31,6 +32,7 @@ const app = new Elysia()
   .use(workloadRouter)
   .use(botRouter)
   .use(performanceRouter)
+  .use(meetingsRouter)
   .onError(({ error, code }) => {
     console.error(`[${code}]`, error);
     return { success: false, error: String(error) };
