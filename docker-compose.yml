@@ -47,6 +47,22 @@ services:
     depends_on:
       - api
 
+  meeting-bot:
+    build:
+      context: apps/meeting-bot
+      dockerfile: Dockerfile
+    container_name: rm_meeting_bot
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://rmuser:rmpassword@postgres:5432/requestdb
+      MEETING_BOT_PROFILES_DIR: /app/bot_profiles
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - meeting_bot_profiles:/app/bot_profiles
+    restart: unless-stopped
+
   # redis:
   #   image: redis:7-alpine
   #   container_name: rm_redis
@@ -68,4 +84,5 @@ services:
 
 volumes:
   postgres_data:
+  meeting_bot_profiles:
   # minio_data:
