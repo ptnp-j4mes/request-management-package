@@ -15,6 +15,13 @@
       "when": 1746835200000,
       "tag": "0001_auth_rbac",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1746921600000,
+      "tag": "0002_request_workflow",
+      "breakpoints": true
     }
   ]
 }
