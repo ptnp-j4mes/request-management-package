@@ -27,3 +27,25 @@ export type PaginatedResponse<T> = ApiResponse<{
   limit: number;
   totalPages: number;
 }>;
+
+export type AuthUser = {
+  id: number;
+  name: string;
+  email: string;
+  departmentId: number | null;
+  roles: string[];
+};
+
+export type LoginResponse = {
+  accessToken: string;
+  user: AuthUser;
+};
+
+export type JwtPayload = {
+  sub: number;
+  email: string;
+  departmentId: number | null;
+  roles: string[];
+  iat?: number;
+  exp?: number;
+};

@@ -1,4 +1,6 @@
+export * from "./departments";
 export * from "./users";
+export * from "./auth";
 export * from "./projects";
 export * from "./maintenance";
 export * from "./uat";

@@ -8,6 +8,13 @@
       "when": 1778226376247,
       "tag": "0000_needy_moon_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1746835200000,
+      "tag": "0001_auth_rbac",
+      "breakpoints": true
     }
   ]
 }

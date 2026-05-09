@@ -3,8 +3,10 @@ import { db } from "../../lib/db";
 import { uatCycles, uatTestCases, uatTestResults } from "@rm/db";
 import { ok, err } from "../../lib/response";
 import { eq } from "drizzle-orm";
+import { authenticate } from "../../lib/auth";
 
 export const uatRouter = new Elysia({ prefix: "/uat" })
+  .use(authenticate)
   // Cycles
   .get("/cycles", async () => {
     return ok(await db.select().from(uatCycles).orderBy(uatCycles.startDate));

@@ -4,8 +4,10 @@ import { mitItems, mitStepAssignments, mitStatusHistory, mitHandoffs } from "@rm
 import { ok, paginated, err } from "../../lib/response";
 import { eq, and, ilike, count, desc } from "drizzle-orm";
 import { assignMitItem, acceptMitItem, submitMitItem, returnMitItem } from "./service";
+import { authenticate, authorize } from "../../lib/auth";
 
 export const mitItemsRouter = new Elysia({ prefix: "/mit-items" })
+  .use(authenticate)
   .get("/", async ({ query }: any) => {
     const page = Number(query.page ?? 1);
     const limit = Number(query.limit ?? 20);
@@ -47,7 +49,8 @@ export const mitItemsRouter = new Elysia({ prefix: "/mit-items" })
     if (!updated) return err("MIT item not found");
     return ok(updated);
   })
-  // Workflow actions
+  // Workflow actions — assign/submit require IT_MANAGER or ADMIN
+  .use(authorize(["IT_MANAGER", "ADMIN"]))
   .post("/:id/assign", async ({ params, body }: any) => {
     try {
       const result = await assignMitItem(

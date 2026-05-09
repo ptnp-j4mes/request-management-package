@@ -2,6 +2,7 @@ import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
 
+import { authRouter } from "./modules/auth/router";
 import { usersRouter } from "./modules/users/router";
 import { projectsRouter } from "./modules/projects/router";
 import { maRouter } from "./modules/maintenance-agreements/router";
@@ -13,9 +14,14 @@ import { botRouter } from "./modules/bot/router";
 import { performanceRouter } from "./modules/performance/router";
 
 const app = new Elysia()
-  .use(cors())
+  .use(cors({
+    origin: process.env.CORS_ORIGIN ?? "http://localhost:9899",
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }))
   .use(swagger({ path: "/docs" }))
   .get("/health", () => ({ status: "ok", timestamp: new Date().toISOString() }))
+  .use(authRouter)
   .use(usersRouter)
   .use(projectsRouter)
   .use(maRouter)

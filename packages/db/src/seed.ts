@@ -1,12 +1,13 @@
 import { db } from "./client";
 import {
-  users, projects, projectMembers,
+  users, departments, roles, userRoles,
+  projects, projectMembers,
   workflowDefinitions, workflowSteps,
   maintenanceAgreements, uatCycles, uatTestCases,
   requests, mitItems, mitStepAssignments, mitStatusHistory,
   botChannels,
 } from "./schema";
-import { count } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 
 console.log("🌱 Seeding database...");
 
@@ -17,13 +18,48 @@ if (Number(total) > 0) {
   process.exit(0);
 }
 
+// ── Departments ───────────────────────────────────────────────────────────────
+const [deptIT, deptFinance, , deptMgmt] = await db.insert(departments).values([
+  { code: "IT",         name: "Information Technology" },
+  { code: "FINANCE",    name: "Finance" },
+  { code: "HR",         name: "Human Resources" },
+  { code: "MANAGEMENT", name: "Management" },
+]).returning();
+
+// ── Roles ─────────────────────────────────────────────────────────────────────
+const [roleAdmin, roleRequester, roleApprover, , roleDev, roleQA, roleFullstack, roleITManager] =
+  await db.insert(roles).values([
+    { code: "ADMIN",      name: "Administrator",    description: "Full system access" },
+    { code: "REQUESTER",  name: "Requester",        description: "Submit requests" },
+    { code: "APPROVER",   name: "Approver",         description: "Approve department requests" },
+    { code: "BA",         name: "Business Analyst", description: "Analyse and triage requests" },
+    { code: "DEVELOPER",  name: "Developer",        description: "Implement MIT items" },
+    { code: "QA",         name: "QA Engineer",      description: "Test MIT items" },
+    { code: "FULLSTACK",  name: "Fullstack",        description: "Dev + QA combined role" },
+    { code: "IT_MANAGER", name: "IT Manager",       description: "Manage IT team and assignments" },
+  ]).returning();
+
+// ── Passwords ─────────────────────────────────────────────────────────────────
+const defaultHash = await Bun.password.hash("password123");
+
 // ── Users ────────────────────────────────────────────────────────────────────
 const [alice, bob, carol, dan] = await db.insert(users).values([
-  { username: "alice", fullName: "Alice Developer", email: "alice@example.com", roleName: "Developer", companyName: "Internal" },
-  { username: "bob", fullName: "Bob QA", email: "bob@example.com", roleName: "QA Engineer", companyName: "Internal" },
-  { username: "carol", fullName: "Carol UAT", email: "carol@example.com", roleName: "UAT Analyst", companyName: "Client A" },
-  { username: "dan", fullName: "Dan Manager", email: "dan@example.com", roleName: "Project Manager", companyName: "Internal" },
+  { username: "alice", fullName: "Alice Developer", email: "alice@example.com", passwordHash: defaultHash, roleName: "Developer", companyName: "Internal", departmentId: deptIT.id },
+  { username: "bob", fullName: "Bob QA", email: "bob@example.com", passwordHash: defaultHash, roleName: "QA Engineer", companyName: "Internal", departmentId: deptIT.id },
+  { username: "carol", fullName: "Carol UAT", email: "carol@example.com", passwordHash: defaultHash, roleName: "UAT Analyst", companyName: "Client A", departmentId: deptFinance.id },
+  { username: "dan", fullName: "Dan Manager", email: "dan@example.com", passwordHash: defaultHash, roleName: "Project Manager", companyName: "Internal", departmentId: deptMgmt.id },
 ]).returning();
+
+// ── User Role Assignments ─────────────────────────────────────────────────────
+await db.insert(userRoles).values([
+  { userId: alice.id, roleId: roleDev.id },
+  { userId: alice.id, roleId: roleFullstack.id },
+  { userId: bob.id,   roleId: roleQA.id },
+  { userId: carol.id, roleId: roleRequester.id },
+  { userId: carol.id, roleId: roleApprover.id },
+  { userId: dan.id,   roleId: roleITManager.id },
+  { userId: dan.id,   roleId: roleAdmin.id },
+]);
 
 // ── Projects ─────────────────────────────────────────────────────────────────
 const [projectA, projectB] = await db.insert(projects).values([
@@ -190,7 +226,8 @@ await db.insert(mitStatusHistory).values([
 ]);
 
 console.log("✅ Seed complete");
-console.log(`  - 4 users, 2 projects`);
+console.log(`  - 4 departments, 8 roles`);
+console.log(`  - 4 users (all password: password123), 2 projects`);
 console.log(`  - Workflow: DEV(${stepDev.id}) → QA(${stepQa.id}) → UAT(${stepUat.id}) → MA(${stepMa.id})`);
 console.log(`  - 3 requests, 3 MIT items`);
 

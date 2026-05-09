@@ -4,8 +4,9 @@ import { usePathname } from "next/navigation";
 import { cn } from "../ui/cn";
 import {
   LayoutDashboard, FolderKanban, Inbox, ClipboardList,
-  TestTube, Shield, BarChart3, Bot, Settings, Zap
+  TestTube, Shield, BarChart3, Bot, Settings, Zap, LogOut
 } from "lucide-react";
+import { useAuth } from "../../contexts/AuthContext";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -22,6 +23,9 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user, logout, isAuthenticated } = useAuth();
+
+  if (pathname === "/login") return null;
 
   return (
     <aside className="w-60 min-h-screen bg-slate-900 text-slate-100 flex flex-col">
@@ -49,7 +53,27 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="px-6 py-4 border-t border-slate-700">
+      <div className="px-4 py-4 border-t border-slate-700 space-y-3">
+        {isAuthenticated && user && (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-slate-200 truncate">{user.name}</p>
+            <p className="text-xs text-slate-400 truncate">{user.email}</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {user.roles.map((r) => (
+                <span key={r} className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded">
+                  {r}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        <button
+          onClick={logout}
+          className="flex items-center gap-2 w-full text-left text-xs text-slate-400 hover:text-slate-100 py-1 transition-colors"
+        >
+          <LogOut className="h-3 w-3" />
+          Sign out
+        </button>
         <p className="text-xs text-slate-500">v0.1.0</p>
       </div>
     </aside>

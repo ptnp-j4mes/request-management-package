@@ -1,10 +1,33 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:9898";
+
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("rm_access_token");
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken();
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders,
+      ...(init?.headers as Record<string, string> | undefined),
+    },
     ...init,
   });
+
+  if (res.status === 401) {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("rm_access_token");
+      localStorage.removeItem("rm_user");
+      document.cookie = "rm_token=; path=/; max-age=0";
+      window.location.href = "/login";
+    }
+    throw new Error("Unauthorized");
+  }
+
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? "Request failed");
   return json;
@@ -68,4 +91,13 @@ export const botApi = {
 
 export const performanceApi = {
   monthly: () => api.get<any>("/performance/monthly"),
+};
+
+export const authApi = {
+  login: (email: string, password: string) =>
+    request<any>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  me: () => api.get<any>("/auth/me"),
+  refresh: (refreshToken: string) =>
+    request<any>("/auth/refresh", { method: "POST", body: JSON.stringify({ refreshToken }) }),
+  logout: () => api.post<any>("/auth/logout", {}),
 };

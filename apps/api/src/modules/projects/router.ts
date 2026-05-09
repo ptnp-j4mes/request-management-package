@@ -3,8 +3,10 @@ import { db } from "../../lib/db";
 import { projects, projectMembers, users } from "@rm/db";
 import { ok, err } from "../../lib/response";
 import { eq, and } from "drizzle-orm";
+import { authenticate, authorize } from "../../lib/auth";
 
 export const projectsRouter = new Elysia({ prefix: "/projects" })
+  .use(authenticate)
   .get("/", async () => {
     const data = await db.select().from(projects).orderBy(projects.projectCode);
     return ok(data);
@@ -19,11 +21,12 @@ export const projectsRouter = new Elysia({ prefix: "/projects" })
       .where(eq(projectMembers.projectId, project.id));
     return ok({ ...project, members });
   })
-  .post("/", async ({ body }) => {
-    const [created] = await db.insert(projects).values(body as any).returning();
+  .use(authorize(["ADMIN", "IT_MANAGER"]))
+  .post("/", async ({ body }: any) => {
+    const [created] = await db.insert(projects).values(body).returning();
     return ok(created);
   })
-  .patch("/:id", async ({ params, body }) => {
+  .patch("/:id", async ({ params, body }: any) => {
     const [updated] = await db.update(projects).set({ ...(body as any), updatedAt: new Date() })
       .where(eq(projects.id, Number(params.id))).returning();
     if (!updated) return err("Project not found");

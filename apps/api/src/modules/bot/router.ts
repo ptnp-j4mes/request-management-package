@@ -3,8 +3,10 @@ import { db } from "../../lib/db";
 import { botChannels, botSessions, botMessages, botRequests, botResponses } from "@rm/db";
 import { ok, err } from "../../lib/response";
 import { eq, desc } from "drizzle-orm";
+import { authenticate } from "../../lib/auth";
 
 export const botRouter = new Elysia({ prefix: "/bot" })
+  .use(authenticate)
   .get("/channels", async () => ok(await db.select().from(botChannels)))
   .get("/sessions", async () => {
     return ok(await db.select().from(botSessions).orderBy(desc(botSessions.startedAt)));

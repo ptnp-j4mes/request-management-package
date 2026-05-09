@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+export const AppRole = z.enum([
+  "ADMIN",
+  "REQUESTER",
+  "APPROVER",
+  "BA",
+  "DEVELOPER",
+  "QA",
+  "FULLSTACK",
+  "IT_MANAGER",
+]);
+export type AppRole = z.infer<typeof AppRole>;
+
 export const ProjectStatus = z.enum(["active", "on_hold", "completed", "cancelled"]);
 export const RequestType = z.enum(["bug", "feedback", "comment", "support", "user_question", "change_request", "uat_finding", "bot_request"]);
 export const RequestStatus = z.enum(["new", "open", "in_progress", "waiting", "resolved", "closed", "rejected"]);

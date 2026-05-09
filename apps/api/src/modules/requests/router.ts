@@ -1,11 +1,13 @@
 import { Elysia } from "elysia";
 import { db } from "../../lib/db";
-import { requests, requestComments, requestStatusHistory, requestBugs, requestChanges } from "@rm/db";
+import { requests, requestComments, requestStatusHistory } from "@rm/db";
 import { ok, paginated, err } from "../../lib/response";
 import { eq, and, ilike, count, desc } from "drizzle-orm";
+import { authenticate, authorize } from "../../lib/auth";
 
 export const requestsRouter = new Elysia({ prefix: "/requests" })
-  .get("/", async ({ query }: any) => {
+  .use(authenticate)
+  .get("/", async ({ query, user }: any) => {
     const page = Number(query.page ?? 1);
     const limit = Number(query.limit ?? 20);
     const offset = (page - 1) * limit;
@@ -18,6 +20,11 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     if (query.assignedUserId) conditions.push(eq(requests.assignedUserId, Number(query.assignedUserId)));
     if (query.search) conditions.push(ilike(requests.subject, `%${query.search}%`));
 
+    // Requesters without elevated roles see only their own requests
+    const isRestricted = user.roles.includes("REQUESTER") &&
+      !user.roles.some((r: string) => ["ADMIN", "IT_MANAGER", "BA"].includes(r));
+    if (isRestricted) conditions.push(eq(requests.requesterUserId, user.id));
+
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 
     const [{ total }] = await db.select({ total: count() }).from(requests).where(where);
@@ -29,7 +36,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
 
     return paginated(items, total, page, limit);
   })
-  .get("/:id", async ({ params }) => {
+  .get("/:id", async ({ params }: any) => {
     const [request] = await db.select().from(requests).where(eq(requests.id, Number(params.id)));
     if (!request) return err("Request not found");
     const comments = await db.select().from(requestComments).where(eq(requestComments.requestId, request.id));
@@ -44,6 +51,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     const [created] = await db.insert(requests).values({ ...body, requestNo }).returning();
     return ok(created);
   })
+  .use(authorize(["APPROVER", "BA", "IT_MANAGER", "ADMIN"]))
   .patch("/:id", async ({ params, body }: any) => {
     const [existing] = await db.select().from(requests).where(eq(requests.id, Number(params.id)));
     if (!existing) return err("Request not found");
@@ -59,7 +67,6 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     }
     return ok(updated);
   })
-  // Comments
   .post("/:id/comments", async ({ params, body }: any) => {
     const [comment] = await db.insert(requestComments).values({
       requestId: Number(params.id),
@@ -67,7 +74,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     }).returning();
     return ok(comment);
   })
-  .get("/:id/comments", async ({ params }) => {
+  .get("/:id/comments", async ({ params }: any) => {
     const data = await db.select().from(requestComments)
       .where(eq(requestComments.requestId, Number(params.id)));
     return ok(data);

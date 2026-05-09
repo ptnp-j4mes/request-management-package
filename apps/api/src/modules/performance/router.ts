@@ -3,8 +3,10 @@ import { db } from "../../lib/db";
 import { userPerformanceMonthly, users, projects } from "@rm/db";
 import { ok } from "../../lib/response";
 import { eq, desc } from "drizzle-orm";
+import { authorize } from "../../lib/auth";
 
 export const performanceRouter = new Elysia({ prefix: "/performance" })
+  .use(authorize(["IT_MANAGER", "ADMIN"]))
   .get("/monthly", async ({ query }: any) => {
     const data = await db
       .select({
