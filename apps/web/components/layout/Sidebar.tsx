@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "../ui/cn";
 import {
   LayoutDashboard, FolderKanban, Inbox, ClipboardList,
-  TestTube, Shield, BarChart3, Bot, Settings, Zap, LogOut, UserCog
+  TestTube, Shield, BarChart3, Bot, Settings, Zap, LogOut, UserCog, ClipboardCheck
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -17,17 +17,21 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { href: "/",            label: "Dashboard",    icon: LayoutDashboard },
-  { href: "/projects",    label: "Projects",     icon: FolderKanban },
-  { href: "/requests",    label: "Requests",     icon: Inbox },
-  { href: "/mit",         label: "MIT Board",    icon: ClipboardList },
-  { href: "/uat",         label: "UAT",          icon: TestTube },
-  { href: "/ma",          label: "MA Coverage",  icon: Shield },
-  { href: "/workload",    label: "Workload",     icon: Zap,      roles: ["BA", "FULLSTACK", "IT_MANAGER", "ADMIN"] },
-  { href: "/performance", label: "Performance",  icon: BarChart3, roles: ["IT_MANAGER", "ADMIN"] },
-  { href: "/bot",         label: "Bot Sessions", icon: Bot,      roles: ["IT_MANAGER", "ADMIN", "BA", "FULLSTACK"] },
-  { href: "/settings",   label: "Settings",     icon: UserCog },
-  { href: "/admin",       label: "Admin",        icon: Settings, roles: ["ADMIN"] },
+  { href: "/",             label: "Dashboard",    icon: LayoutDashboard },
+  // REQUESTER-only: "My Requests" personal tracker
+  { href: "/my-requests",  label: "My Requests",  icon: ClipboardCheck, roles: ["REQUESTER"] },
+  // Internal roles: all team members
+  { href: "/projects",     label: "Projects",     icon: FolderKanban,  roles: ["ADMIN", "IT_MANAGER", "BA", "APPROVER", "DEVELOPER", "QA", "FULLSTACK"] },
+  { href: "/requests",     label: "All Requests", icon: Inbox,         roles: ["ADMIN", "IT_MANAGER", "BA", "APPROVER", "DEVELOPER", "QA", "FULLSTACK"] },
+  { href: "/mit",          label: "MIT Board",    icon: ClipboardList, roles: ["ADMIN", "IT_MANAGER", "BA", "DEVELOPER", "QA", "FULLSTACK"] },
+  // UAT: visible to all (REQUESTER needs to perform UAT Approve)
+  { href: "/uat",          label: "UAT",          icon: TestTube },
+  { href: "/ma",           label: "MA Coverage",  icon: Shield,        roles: ["ADMIN", "IT_MANAGER", "BA", "FULLSTACK", "APPROVER"] },
+  { href: "/workload",     label: "Workload",     icon: Zap,           roles: ["BA", "FULLSTACK", "IT_MANAGER", "ADMIN"] },
+  { href: "/performance",  label: "Performance",  icon: BarChart3,     roles: ["IT_MANAGER", "ADMIN"] },
+  { href: "/bot",          label: "Bot Sessions", icon: Bot,           roles: ["IT_MANAGER", "ADMIN", "BA", "FULLSTACK"] },
+  { href: "/settings",     label: "Settings",     icon: UserCog },
+  { href: "/admin",        label: "Admin",        icon: Settings,      roles: ["ADMIN"] },
 ];
 
 export function Sidebar() {

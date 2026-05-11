@@ -95,6 +95,17 @@ export const uatApi = {
   cycle: (id: number) => api.get<any>(`/uat/cycles/${id}`),
   testCases: () => api.get<any>("/uat/test-cases"),
   results: () => api.get<any>("/uat/test-results"),
+  // Comments & Defects on UAT cycles
+  listComments: (cycleId: number) => api.get<any>(`/uat/cycles/${cycleId}/comments`),
+  addComment: (cycleId: number, body: {
+    commentText: string;
+    commentType?: "comment" | "defect" | "question" | "note";
+    testCaseId?: number;
+    severity?: "critical" | "high" | "medium" | "low";
+    linkedRequestId?: number;
+  }) => api.post<any>(`/uat/cycles/${cycleId}/comments`, body),
+  updateComment: (cycleId: number, commentId: number, body: { status: string }) =>
+    api.patch<any>(`/uat/cycles/${cycleId}/comments/${commentId}`, body),
 };
 
 export const botApi = {

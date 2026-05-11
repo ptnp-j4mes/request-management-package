@@ -2,6 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { requestsApi } from "../../../lib/api";
 import { RequestActions } from "../../../components/requests/RequestActions";
+import { StatusStepper } from "../../../components/requests/StatusStepper";
 import Link from "next/link";
 
 const typeColors: Record<string, string> = {
@@ -57,6 +58,9 @@ export default function RequestDetailPage({ params }: { params: { id: string } }
           <p className="text-sm text-slate-600 whitespace-pre-wrap">{request.description}</p>
         </div>
       </div>
+
+      {/* Status Stepper */}
+      <StatusStepper status={request.status} showPercent={true} />
 
       {/* Workflow Actions */}
       <RequestActions request={request} />

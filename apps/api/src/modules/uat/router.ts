@@ -1,8 +1,8 @@
 import { Elysia } from "elysia";
 import { db } from "../../lib/db";
-import { uatCycles, uatTestCases, uatTestResults } from "@rm/db";
+import { uatCycles, uatTestCases, uatTestResults, uatCycleComments, users } from "@rm/db";
 import { ok, err } from "../../lib/response";
-import { eq } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { authenticate } from "../../lib/auth";
 
 export const uatRouter = new Elysia({ prefix: "/uat" })
@@ -42,4 +42,57 @@ export const uatRouter = new Elysia({ prefix: "/uat" })
   .post("/test-results", async ({ body }) => {
     const [created] = await db.insert(uatTestResults).values(body as any).returning();
     return ok(created);
+  })
+  // UAT Cycle Comments & Defects
+  .get("/cycles/:id/comments", async ({ params }) => {
+    const cycleId = Number(params.id);
+    const comments = await db
+      .select({
+        id: uatCycleComments.id,
+        uatCycleId: uatCycleComments.uatCycleId,
+        testCaseId: uatCycleComments.testCaseId,
+        createdByUserId: uatCycleComments.createdByUserId,
+        createdByName: users.fullName,
+        commentText: uatCycleComments.commentText,
+        commentType: uatCycleComments.commentType,
+        severity: uatCycleComments.severity,
+        status: uatCycleComments.status,
+        linkedRequestId: uatCycleComments.linkedRequestId,
+        createdAt: uatCycleComments.createdAt,
+        updatedAt: uatCycleComments.updatedAt,
+      })
+      .from(uatCycleComments)
+      .leftJoin(users, eq(users.id, uatCycleComments.createdByUserId))
+      .where(eq(uatCycleComments.uatCycleId, cycleId))
+      .orderBy(asc(uatCycleComments.createdAt));
+    return ok(comments);
+  })
+  .post("/cycles/:id/comments", async ({ params, body, user }: any) => {
+    const cycleId = Number(params.id);
+    const [cycle] = await db.select().from(uatCycles).where(eq(uatCycles.id, cycleId));
+    if (!cycle) return err("UAT cycle not found");
+
+    const { commentText, commentType = "comment", testCaseId, severity, linkedRequestId } = body as any;
+    if (!commentText?.trim()) return err("commentText is required");
+
+    const [created] = await db.insert(uatCycleComments).values({
+      uatCycleId: cycleId,
+      testCaseId: testCaseId ?? null,
+      createdByUserId: user.id,
+      commentText: commentText.trim(),
+      commentType,
+      severity: severity ?? null,
+      linkedRequestId: linkedRequestId ?? null,
+    }).returning();
+    return ok(created);
+  })
+  .patch("/cycles/:id/comments/:commentId", async ({ params, body }: any) => {
+    const { status } = body as any;
+    const [updated] = await db
+      .update(uatCycleComments)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(uatCycleComments.id, Number(params.commentId)))
+      .returning();
+    if (!updated) return err("Comment not found");
+    return ok(updated);
   });
