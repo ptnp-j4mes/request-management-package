@@ -11,3 +11,4 @@ export * from "./bot";
 export * from "./performance";
 export * from "./meetings";
 export * from "./github";
+export * from "./twoFactor";
