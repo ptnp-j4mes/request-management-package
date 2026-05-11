@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { mitApi } from "../../../lib/api";
+import { mitApi, githubApi } from "../../../lib/api";
 import Link from "next/link";
 import { useState } from "react";
 import { WorkflowActionSheet } from "../../../components/mit/WorkflowActionSheet";
@@ -12,6 +12,15 @@ export default function MitDetailPage({ params }: { params: { id: string } }) {
     queryFn: () => mitApi.get(Number(params.id)),
   });
   const mit = data?.data;
+
+  const { data: commitsData, isLoading: commitsLoading } = useQuery({
+    queryKey: ["mit-commits", params.id],
+    queryFn: () => githubApi.getMitCommits(Number(params.id)),
+    enabled: !!mit,
+    retry: false,
+  });
+  const commits: any[] = commitsData?.data?.commits ?? [];
+  const commitsError = commitsData?.success === false ? commitsData?.error : null;
 
   if (isLoading) return <div className="p-6 text-slate-500">Loading…</div>;
   if (!mit) return <div className="p-6 text-red-500">MIT item not found</div>;
@@ -101,6 +110,63 @@ export default function MitDetailPage({ params }: { params: { id: string } }) {
               <span>→</span>
               <span className="font-medium">{h.newStatus}</span>
               {h.remark && <span className="text-slate-400 text-xs">({h.remark})</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* GitHub Commits */}
+      <div className="bg-white rounded-lg border shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-slate-800">
+            GitHub Commits
+            {commits.length > 0 && (
+              <span className="ml-2 text-sm text-slate-400 font-normal">
+                ({commits.length}) — filtered by @{commitsData?.data?.filterBy ?? "all"}
+              </span>
+            )}
+          </h2>
+          {commitsData?.data?.repo && (
+            <span className="font-mono text-xs text-slate-400">
+              {commitsData.data.repo} @ {commitsData.data.branch}
+            </span>
+          )}
+        </div>
+
+        {commitsLoading && <p className="text-slate-400 text-sm">Fetching commits…</p>}
+
+        {!commitsLoading && commitsError && (
+          <p className="text-amber-600 text-sm">{commitsError}</p>
+        )}
+
+        {!commitsLoading && !commitsError && commits.length === 0 && (
+          <p className="text-slate-400 text-sm">
+            No commits found.{" "}
+            {!commitsData?.data?.filterBy && "Set a GitHub username on the assigned developer's profile to filter commits."}
+          </p>
+        )}
+
+        <div className="divide-y divide-slate-100">
+          {commits.map((c: any) => (
+            <div key={c.fullSha} className="flex items-start gap-3 py-3">
+              <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-600 shrink-0 mt-0.5">
+                {c.sha}
+              </code>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-slate-800 truncate">{c.message}</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {c.githubUsername ? `@${c.githubUsername}` : c.author}
+                  {c.committedAt && ` · ${new Date(c.committedAt).toLocaleString()}`}
+                </p>
+              </div>
+              <a
+                href={c.htmlUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-blue-600 hover:underline shrink-0"
+              >
+                View ↗
+              </a>
             </div>
           ))}
         </div>

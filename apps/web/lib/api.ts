@@ -106,6 +106,24 @@ export const performanceApi = {
   monthly: () => api.get<any>("/performance/monthly"),
 };
 
+export const githubApi = {
+  getSettings: (projectId: number) =>
+    api.get<any>(`/projects/${projectId}/github-settings`),
+  updateSettings: (projectId: number, body: { repoOwner: string; repoName: string; defaultBranch?: string }) =>
+    request<any>(`/projects/${projectId}/github-settings`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  getProjectCommits: (projectId: number, author?: string) => {
+    const qs = author ? `?author=${encodeURIComponent(author)}` : "";
+    return api.get<any>(`/projects/${projectId}/commits${qs}`);
+  },
+  getMitCommits: (mitId: number) =>
+    api.get<any>(`/mit-items/${mitId}/commits`),
+  connectUrl: (projectId: number) =>
+    `${BASE}/auth/github/connect?projectId=${projectId}`,
+};
+
 export const authApi = {
   login: (email: string, password: string) =>
     request<any>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),

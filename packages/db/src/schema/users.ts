@@ -10,6 +10,7 @@ export const users = pgTable("users", {
   roleName: varchar("role_name", { length: 100 }),
   companyName: varchar("company_name", { length: 255 }),
   departmentId: bigint("department_id", { mode: "number" }).references(() => departments.id, { onDelete: "set null" }),
+  githubUsername: varchar("github_username", { length: 100 }),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

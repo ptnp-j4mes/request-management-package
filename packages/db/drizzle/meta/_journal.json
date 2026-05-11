@@ -36,6 +36,13 @@
       "when": 1747008000001,
       "tag": "0004_ait_md",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1747008000002,
+      "tag": "0005_github_integration",
+      "breakpoints": true
     }
   ]
 }

@@ -13,6 +13,7 @@ import { workloadRouter } from "./modules/workload/router";
 import { botRouter } from "./modules/bot/router";
 import { performanceRouter } from "./modules/performance/router";
 import { meetingsRouter } from "./modules/meetings/router";
+import { githubRouter } from "./modules/github/router";
 
 const app = new Elysia()
   .use(cors({
@@ -33,6 +34,7 @@ const app = new Elysia()
   .use(botRouter)
   .use(performanceRouter)
   .use(meetingsRouter)
+  .use(githubRouter)
   .onError(({ error, code }) => {
     console.error(`[${code}]`, error);
     return { success: false, error: String(error) };
