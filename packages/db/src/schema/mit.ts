@@ -34,6 +34,7 @@ export const mitItems = pgTable("mit_items", {
   actualEndAt: timestamp("actual_end_at", { withTimezone: true }),
   estimatedHours: numeric("estimated_hours", { precision: 10, scale: 2 }),
   actualHours: numeric("actual_hours", { precision: 10, scale: 2 }),
+  estimatedMd: numeric("estimated_md", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

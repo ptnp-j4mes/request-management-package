@@ -1,4 +1,4 @@
-import { pgTable, bigserial, varchar, date, timestamp, bigint, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, bigserial, varchar, date, timestamp, bigint, primaryKey, numeric } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 export const projects = pgTable("projects", {
@@ -9,6 +9,7 @@ export const projects = pgTable("projects", {
   startDate: date("start_date"),
   goLiveDate: date("go_live_date"),
   status: varchar("status", { length: 30 }).notNull().default("active"),
+  estimatedMd: numeric("estimated_md", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
