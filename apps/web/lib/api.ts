@@ -95,6 +95,17 @@ export const uatApi = {
   cycle: (id: number) => api.get<any>(`/uat/cycles/${id}`),
   testCases: () => api.get<any>("/uat/test-cases"),
   results: () => api.get<any>("/uat/test-results"),
+  // Comments & Defects on UAT cycles
+  listComments: (cycleId: number) => api.get<any>(`/uat/cycles/${cycleId}/comments`),
+  addComment: (cycleId: number, body: {
+    commentText: string;
+    commentType?: "comment" | "defect" | "question" | "note";
+    testCaseId?: number;
+    severity?: "critical" | "high" | "medium" | "low";
+    linkedRequestId?: number;
+  }) => api.post<any>(`/uat/cycles/${cycleId}/comments`, body),
+  updateComment: (cycleId: number, commentId: number, body: { status: string }) =>
+    api.patch<any>(`/uat/cycles/${cycleId}/comments/${commentId}`, body),
 };
 
 export const botApi = {
@@ -133,6 +144,13 @@ export const githubApi = {
     api.post<any>(`/mit-items/${mitId}/github/merge-pr`, {}),
   deleteBranch: (mitId: number) =>
     request<any>(`/mit-items/${mitId}/github/delete-branch`, { method: "DELETE" }),
+  // Create GitHub repo for a project
+  createRepo: (projectId: number, body: {
+    repoName: string;
+    repoOwner?: string;
+    isPrivate?: boolean;
+    description?: string;
+  }) => api.post<any>(`/projects/${projectId}/github/create-repo`, body),
   // System GitHub account
   getSystemAccount: () => api.get<any>("/settings/github-account"),
   updateSystemAccount: (body: { label?: string; githubUsername?: string; accessToken?: string }) =>

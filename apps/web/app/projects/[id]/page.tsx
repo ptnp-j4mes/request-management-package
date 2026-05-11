@@ -5,12 +5,12 @@ import { useAuth } from "../../../contexts/AuthContext";
 import Link from "next/link";
 import { useState } from "react";
 
-const tabs = ["Requests", "MIT Items", "UAT", "MA", "Members", "GitHub"];
+const tabs = ["Progress", "Requests", "MIT Items", "UAT", "MA", "Members", "GitHub"];
 
 export default function ProjectDetailPage({ params }: { params: { id: string } }) {
   const { user, hasAnyRole } = useAuth();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("Requests");
+  const [activeTab, setActiveTab] = useState("Progress");
   const [repoOwner, setRepoOwner] = useState("");
   const [repoName, setRepoName] = useState("");
   const [defaultBranch, setDefaultBranch] = useState("main");
@@ -27,8 +27,8 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   });
   const { data: mitData } = useQuery({
     queryKey: ["mit-items", { projectId: params.id }],
-    queryFn: () => mitApi.list({ projectId: params.id, limit: "50" }),
-    enabled: activeTab === "MIT Items",
+    queryFn: () => mitApi.list({ projectId: params.id, limit: "200" }),
+    enabled: activeTab === "MIT Items" || activeTab === "Progress",
   });
   const { data: ghSettingsData } = useQuery({
     queryKey: ["github-settings", params.id],
@@ -107,6 +107,10 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       </div>
 
       {/* Tab Content */}
+      {activeTab === "Progress" && (
+        <ProjectProgress project={project} mitItems={mitItems} />
+      )}
+
       {activeTab === "Requests" && (
         <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
           <table className="w-full text-sm">
@@ -329,6 +333,186 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
               ))}
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Project Progress Component ──────────────────────────────────────────────
+
+function ProgressBar({ percent, color = "blue" }: { percent: number; color?: string }) {
+  const colors: Record<string, string> = {
+    blue:  "bg-blue-500",
+    green: "bg-green-500",
+    amber: "bg-amber-400",
+    slate: "bg-slate-300",
+  };
+  return (
+    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+      <div
+        className={`h-full rounded-full transition-all ${colors[color] ?? "bg-blue-500"}`}
+        style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
+      />
+    </div>
+  );
+}
+
+const MIT_STATUS_CONFIG: Record<string, { label: string; color: string; order: number }> = {
+  deployed:        { label: "Deployed ✅",       color: "green", order: 1 },
+  in_qa:           { label: "In QA 🧪",           color: "blue",  order: 2 },
+  ready_for_qa:    { label: "Ready for QA",       color: "blue",  order: 3 },
+  in_development:  { label: "In Development 🔨",  color: "amber", order: 4 },
+  assigned_to_dev: { label: "Assigned to Dev",    color: "amber", order: 5 },
+  new:             { label: "New / Waiting 📋",   color: "slate", order: 6 },
+};
+
+function ProjectProgress({ project, mitItems }: { project: any; mitItems: any[] }) {
+  const total      = mitItems.length;
+  const deployed   = mitItems.filter((m) => m.currentStatus === "deployed").length;
+  const overallPct = total > 0 ? Math.round((deployed / total) * 100) : 0;
+
+  const mdSummary = project.mdSummary;
+  const mdPct     = mdSummary?.estimatedMd > 0
+    ? Math.round((mdSummary.allocatedMd / mdSummary.estimatedMd) * 100)
+    : 0;
+
+  // Group MIT items by status
+  const groups: Record<string, number> = {};
+  for (const m of mitItems) {
+    groups[m.currentStatus] = (groups[m.currentStatus] ?? 0) + 1;
+  }
+  const groupEntries = Object.entries(groups).sort(
+    ([a], [b]) => (MIT_STATUS_CONFIG[a]?.order ?? 99) - (MIT_STATUS_CONFIG[b]?.order ?? 99)
+  );
+
+  // Timeline
+  const now        = new Date();
+  const startDate  = project.startDate  ? new Date(project.startDate)  : null;
+  const goLiveDate = project.goLiveDate ? new Date(project.goLiveDate) : null;
+  const timelinePct = startDate && goLiveDate
+    ? Math.round(((now.getTime() - startDate.getTime()) / (goLiveDate.getTime() - startDate.getTime())) * 100)
+    : null;
+
+  return (
+    <div className="space-y-4">
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg border shadow-sm p-5 space-y-2">
+          <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Overall Progress</p>
+          <div className="flex items-end gap-2">
+            <span className="text-3xl font-bold text-slate-900">{overallPct}%</span>
+            <span className="text-sm text-slate-400 mb-1">{deployed}/{total} items</span>
+          </div>
+          <ProgressBar percent={overallPct} color={overallPct === 100 ? "green" : "blue"} />
+          <p className="text-xs text-slate-400">Deployed / Total MIT items</p>
+        </div>
+
+        <div className="bg-white rounded-lg border shadow-sm p-5 space-y-2">
+          <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Man-Days Budget</p>
+          <div className="flex items-end gap-2">
+            <span className="text-3xl font-bold text-slate-900">{mdSummary?.estimatedMd ?? "—"}</span>
+            <span className="text-sm text-slate-400 mb-1">MD total</span>
+          </div>
+          {mdSummary && (
+            <>
+              <ProgressBar percent={mdPct} color={mdPct > 100 ? "amber" : "blue"} />
+              <div className="flex justify-between text-xs text-slate-400">
+                <span>Allocated: {mdSummary.allocatedMd} MD ({mdPct}%)</span>
+                <span>Remaining: {mdSummary.remainingMd} MD</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg border shadow-sm p-5 space-y-2">
+          <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Timeline</p>
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Start:</span>
+              <span className="font-medium">{project.startDate ?? "—"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Go Live:</span>
+              <span className="font-medium">{project.goLiveDate ?? "—"}</span>
+            </div>
+          </div>
+          {timelinePct !== null && (
+            <>
+              <ProgressBar
+                percent={timelinePct}
+                color={timelinePct > 100 ? "amber" : timelinePct > 85 ? "amber" : "blue"}
+              />
+              <p className="text-xs text-slate-400">
+                {Math.min(100, timelinePct)}% of time elapsed
+                {timelinePct > 100 && <span className="text-amber-600 ml-1">— เลยกำหนดแล้ว</span>}
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* MIT items by status */}
+      {total > 0 && (
+        <div className="bg-white rounded-lg border shadow-sm p-5 space-y-3">
+          <h3 className="font-semibold text-slate-800">MIT Items by Status</h3>
+          <div className="space-y-2">
+            {groupEntries.map(([status, count]) => {
+              const cfg = MIT_STATUS_CONFIG[status] ?? { label: status, color: "slate", order: 99 };
+              const pct = Math.round((count / total) * 100);
+              return (
+                <div key={status} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-700">{cfg.label}</span>
+                    <span className="text-slate-500 font-medium">{count} items ({pct}%)</span>
+                  </div>
+                  <ProgressBar percent={pct} color={cfg.color} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {total === 0 && (
+        <div className="bg-white rounded-lg border shadow-sm p-5 text-slate-400 text-sm text-center">
+          ยังไม่มี MIT items — เพิ่ม MIT items เพื่อดูความคืบหน้า
+        </div>
+      )}
+
+      {/* MD breakdown table */}
+      {mdSummary?.items?.length > 0 && (
+        <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b">
+            <h3 className="font-semibold text-slate-800">MD Breakdown by MIT Item</h3>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+              <tr>
+                <th className="px-5 py-3 text-left">MIT No.</th>
+                <th className="px-5 py-3 text-left">Title</th>
+                <th className="px-5 py-3 text-right">Estimated MD</th>
+                <th className="px-5 py-3 text-right">% of Project</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {mdSummary.items.map((item: any) => (
+                <tr key={item.mitNo} className="hover:bg-slate-50">
+                  <td className="px-5 py-3 font-mono text-xs text-slate-500">{item.mitNo}</td>
+                  <td className="px-5 py-3 text-slate-700">{item.title}</td>
+                  <td className="px-5 py-3 text-right font-medium">{item.estimatedMd}</td>
+                  <td className="px-5 py-3 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-400 rounded-full" style={{ width: `${item.percent}%` }} />
+                      </div>
+                      <span className="text-slate-500 text-xs">{item.percent}%</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

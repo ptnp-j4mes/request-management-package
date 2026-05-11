@@ -1,6 +1,7 @@
 import { pgTable, bigserial, varchar, date, text, boolean, timestamp, bigint } from "drizzle-orm/pg-core";
 import { projects } from "./projects";
 import { users } from "./users";
+import { requests } from "./requests";
 
 export const uatCycles = pgTable("uat_cycles", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
@@ -38,4 +39,25 @@ export const uatTestResults = pgTable("uat_test_results", {
   actualResult: text("actual_result"),
   note: text("note"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const uatCycleComments = pgTable("uat_cycle_comments", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  uatCycleId: bigint("uat_cycle_id", { mode: "number" })
+    .notNull().references(() => uatCycles.id, { onDelete: "cascade" }),
+  testCaseId: bigint("test_case_id", { mode: "number" })
+    .references(() => uatTestCases.id, { onDelete: "set null" }),
+  createdByUserId: bigint("created_by_user_id", { mode: "number" })
+    .references(() => users.id),
+  commentText: text("comment_text").notNull(),
+  commentType: varchar("comment_type", { length: 50 }).notNull().default("comment"),
+  // "comment" | "defect" | "question" | "note"
+  severity: varchar("severity", { length: 50 }),
+  // null | "critical" | "high" | "medium" | "low"
+  status: varchar("status", { length: 50 }).notNull().default("open"),
+  // "open" | "in_progress" | "resolved" | "closed"
+  linkedRequestId: bigint("linked_request_id", { mode: "number" })
+    .references(() => requests.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
