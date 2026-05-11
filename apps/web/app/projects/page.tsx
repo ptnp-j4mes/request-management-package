@@ -15,9 +15,9 @@ export default function ProjectsPage() {
           <h1 className="text-2xl font-bold text-slate-900">Projects</h1>
           <p className="text-slate-500 text-sm mt-1">{projects.length} projects</p>
         </div>
-        <button className="flex items-center gap-2 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-blue-700">
+        <Link href="/projects/new" className="flex items-center gap-2 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-blue-700">
           <Plus className="h-4 w-4" /> New Project
-        </button>
+        </Link>
       </div>
 
       <div className="bg-white rounded-lg border shadow-sm overflow-hidden">

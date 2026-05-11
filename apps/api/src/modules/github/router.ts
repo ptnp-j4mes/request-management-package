@@ -443,6 +443,67 @@ export const githubRouter = new Elysia()
     }
   })
 
+  // ── Create GitHub Repo for a Project ─────────────────────────────────────────
+  // POST /projects/:id/github/create-repo
+  .post("/projects/:id/github/create-repo", async ({ params, body, user }: any) => {
+    const projectId = Number(params.id);
+    const { repoName, repoOwner, isPrivate = false, description = "" } = body as any;
+
+    if (!repoName) return err("repoName is required");
+
+    // Resolve token: project token → system account
+    let token: string | null = null;
+    const [ps] = await db.select().from(projectGithubSettings)
+      .where(eq(projectGithubSettings.projectId, projectId));
+    if (ps?.accessToken) token = ps.accessToken;
+    if (!token) {
+      const [sys] = await db.select().from(systemGithubAccount).limit(1);
+      token = sys?.accessToken ?? null;
+    }
+    if (!token) return err("No GitHub token — set up a system GitHub account in Settings first");
+
+    try {
+      // Use /orgs/:owner/repos if repoOwner specified, otherwise /user/repos
+      const endpoint = repoOwner ? `/orgs/${repoOwner}/repos` : `/user/repos`;
+      const repo = await ghFetch(token, "POST", endpoint, {
+        name: repoName,
+        private: isPrivate,
+        description,
+        auto_init: true,
+        gitignore_template: "Node",
+      });
+
+      const owner: string = repo.owner.login;
+      const name: string = repo.name;
+      const defaultBranch: string = repo.default_branch ?? "main";
+
+      // Upsert project_github_settings
+      const [existing] = await db.select().from(projectGithubSettings)
+        .where(eq(projectGithubSettings.projectId, projectId));
+
+      if (existing) {
+        await db.update(projectGithubSettings)
+          .set({ repoOwner: owner, repoName: name, defaultBranch, updatedAt: new Date() })
+          .where(eq(projectGithubSettings.projectId, projectId));
+      } else {
+        await db.insert(projectGithubSettings)
+          .values({ projectId, repoOwner: owner, repoName: name, defaultBranch, connectedByUserId: user.id });
+      }
+
+      return ok({
+        repoOwner: owner,
+        repoName: name,
+        defaultBranch,
+        htmlUrl: repo.html_url,
+        sshUrl: repo.ssh_url,
+        cloneUrl: repo.clone_url,
+        isPrivate: repo.private,
+      });
+    } catch (e: any) {
+      return err(e.message ?? "Failed to create GitHub repository");
+    }
+  })
+
   // DELETE /mit-items/:id/github/delete-branch
   .delete("/mit-items/:id/github/delete-branch", async ({ params }: any) => {
     const mitId = Number(params.id);
