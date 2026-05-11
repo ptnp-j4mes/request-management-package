@@ -16,3 +16,14 @@ export const projectGithubSettings = pgTable("project_github_settings", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const systemGithubAccount = pgTable("system_github_account", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  label: varchar("label", { length: 100 }).notNull().default("default"),
+  githubUsername: varchar("github_username", { length: 100 }),
+  accessToken: text("access_token"),
+  tokenScope: varchar("token_scope", { length: 255 }),
+  connectedByUserId: bigint("connected_by_user_id", { mode: "number" }).references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -1,5 +1,5 @@
 import {
-  pgTable, bigserial, varchar, text, numeric, date, timestamp, bigint, index
+  pgTable, bigserial, varchar, text, numeric, date, timestamp, bigint, index, integer
 } from "drizzle-orm/pg-core";
 import { projects } from "./projects";
 import { users } from "./users";
@@ -35,6 +35,9 @@ export const mitItems = pgTable("mit_items", {
   estimatedHours: numeric("estimated_hours", { precision: 10, scale: 2 }),
   actualHours: numeric("actual_hours", { precision: 10, scale: 2 }),
   estimatedMd: numeric("estimated_md", { precision: 10, scale: 2 }),
+  githubBranchName: varchar("github_branch_name", { length: 255 }),
+  githubPrUrl: varchar("github_pr_url", { length: 500 }),
+  githubPrNumber: integer("github_pr_number"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

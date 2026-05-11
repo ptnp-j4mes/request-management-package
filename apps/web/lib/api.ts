@@ -122,6 +122,34 @@ export const githubApi = {
     api.get<any>(`/mit-items/${mitId}/commits`),
   connectUrl: (projectId: number) =>
     `${BASE}/auth/github/connect?projectId=${projectId}`,
+  connectSystemUrl: () =>
+    `${BASE}/auth/github/connect?system=true`,
+  // Git operations on MIT items
+  createBranch: (mitId: number, branchName?: string) =>
+    api.post<any>(`/mit-items/${mitId}/github/create-branch`, branchName ? { branchName } : {}),
+  createPr: (mitId: number, title?: string) =>
+    api.post<any>(`/mit-items/${mitId}/github/create-pr`, title ? { title } : {}),
+  mergePr: (mitId: number) =>
+    api.post<any>(`/mit-items/${mitId}/github/merge-pr`, {}),
+  deleteBranch: (mitId: number) =>
+    request<any>(`/mit-items/${mitId}/github/delete-branch`, { method: "DELETE" }),
+  // System GitHub account
+  getSystemAccount: () => api.get<any>("/settings/github-account"),
+  updateSystemAccount: (body: { label?: string; githubUsername?: string; accessToken?: string }) =>
+    request<any>("/settings/github-account", { method: "PUT", body: JSON.stringify(body) }),
+};
+
+export const settingsApi = {
+  getMe: () => api.get<any>("/auth/me"),
+  updateProfile: (body: { fullName?: string; email?: string; companyName?: string; githubUsername?: string }) =>
+    request<any>("/users/me", { method: "PATCH", body: JSON.stringify(body) }),
+  // Google Bot Accounts
+  listBotAccounts: () => api.get<any>("/google-bot-accounts"),
+  createBotAccount: (body: any) => api.post<any>("/google-bot-accounts", body),
+  updateBotAccount: (id: number, body: any) =>
+    request<any>(`/google-bot-accounts/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  disableBotAccount: (id: number) => api.post<any>(`/google-bot-accounts/${id}/disable`, {}),
+  setDefaultBotAccount: (id: number) => api.post<any>(`/google-bot-accounts/${id}/set-default`, {}),
 };
 
 export const authApi = {

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "../ui/cn";
 import {
   LayoutDashboard, FolderKanban, Inbox, ClipboardList,
-  TestTube, Shield, BarChart3, Bot, Settings, Zap, LogOut
+  TestTube, Shield, BarChart3, Bot, Settings, Zap, LogOut, UserCog
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -26,6 +26,7 @@ const navItems: NavItem[] = [
   { href: "/workload",    label: "Workload",     icon: Zap,      roles: ["BA", "FULLSTACK", "IT_MANAGER", "ADMIN"] },
   { href: "/performance", label: "Performance",  icon: BarChart3, roles: ["IT_MANAGER", "ADMIN"] },
   { href: "/bot",         label: "Bot Sessions", icon: Bot,      roles: ["IT_MANAGER", "ADMIN", "BA", "FULLSTACK"] },
+  { href: "/settings",   label: "Settings",     icon: UserCog },
   { href: "/admin",       label: "Admin",        icon: Settings, roles: ["ADMIN"] },
 ];
 

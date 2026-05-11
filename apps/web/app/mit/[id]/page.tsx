@@ -1,6 +1,7 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import { mitApi, githubApi } from "../../../lib/api";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 import { WorkflowActionSheet } from "../../../components/mit/WorkflowActionSheet";
@@ -21,6 +22,24 @@ export default function MitDetailPage({ params }: { params: { id: string } }) {
   });
   const commits: any[] = commitsData?.data?.commits ?? [];
   const commitsError = commitsData?.success === false ? commitsData?.error : null;
+  const queryClient = useQueryClient();
+
+  const createBranchMutation = useMutation({
+    mutationFn: () => githubApi.createBranch(Number(params.id)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["mit-item", params.id] }),
+  });
+  const createPrMutation = useMutation({
+    mutationFn: () => githubApi.createPr(Number(params.id)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["mit-item", params.id] }),
+  });
+  const mergePrMutation = useMutation({
+    mutationFn: () => githubApi.mergePr(Number(params.id)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["mit-item", params.id] }),
+  });
+  const deleteBranchMutation = useMutation({
+    mutationFn: () => githubApi.deleteBranch(Number(params.id)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["mit-item", params.id] }),
+  });
 
   if (isLoading) return <div className="p-6 text-slate-500">Loading…</div>;
   if (!mit) return <div className="p-6 text-red-500">MIT item not found</div>;
@@ -112,6 +131,95 @@ export default function MitDetailPage({ params }: { params: { id: string } }) {
               {h.remark && <span className="text-slate-400 text-xs">({h.remark})</span>}
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Git Operations */}
+      <div className="bg-white rounded-lg border shadow-sm p-6 space-y-4">
+        <h2 className="font-semibold text-slate-800">Git Operations</h2>
+
+        {/* Branch */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm text-slate-500 w-16">Branch:</span>
+          {mit.githubBranchName ? (
+            <>
+              <code className="text-sm bg-slate-100 px-2 py-0.5 rounded font-mono text-slate-700">
+                {mit.githubBranchName}
+              </code>
+              <button
+                onClick={() => deleteBranchMutation.mutate()}
+                disabled={deleteBranchMutation.isPending}
+                className="text-xs text-red-500 hover:underline disabled:opacity-50"
+              >
+                {deleteBranchMutation.isPending ? "Deleting…" : "Delete Branch"}
+              </button>
+              {deleteBranchMutation.isError && (
+                <span className="text-xs text-red-600">{(deleteBranchMutation.error as any)?.message}</span>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="text-sm text-slate-400">No branch linked</span>
+              <button
+                onClick={() => createBranchMutation.mutate()}
+                disabled={createBranchMutation.isPending}
+                className="px-3 py-1 bg-slate-900 text-white text-xs font-medium rounded hover:bg-slate-700 disabled:opacity-50"
+              >
+                {createBranchMutation.isPending
+                  ? "Creating…"
+                  : `Create Branch (mit/${mit.mitNo.toLowerCase()})`}
+              </button>
+              {createBranchMutation.isError && (
+                <span className="text-xs text-red-600">{(createBranchMutation.error as any)?.message}</span>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Pull Request */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm text-slate-500 w-16">PR:</span>
+          {mit.githubPrNumber ? (
+            <>
+              <a
+                href={mit.githubPrUrl ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-blue-600 hover:underline font-medium"
+              >
+                #{mit.githubPrNumber} View PR ↗
+              </a>
+              <button
+                onClick={() => mergePrMutation.mutate()}
+                disabled={mergePrMutation.isPending}
+                className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 disabled:opacity-50"
+              >
+                {mergePrMutation.isPending ? "Merging…" : "Merge PR"}
+              </button>
+              {mergePrMutation.isError && (
+                <span className="text-xs text-red-600">{(mergePrMutation.error as any)?.message}</span>
+              )}
+              {mergePrMutation.isSuccess && (
+                <span className="text-xs text-green-600">✓ Merged</span>
+              )}
+            </>
+          ) : mit.githubBranchName ? (
+            <>
+              <span className="text-sm text-slate-400">No PR yet</span>
+              <button
+                onClick={() => createPrMutation.mutate()}
+                disabled={createPrMutation.isPending}
+                className="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {createPrMutation.isPending ? "Creating…" : "Create PR"}
+              </button>
+              {createPrMutation.isError && (
+                <span className="text-xs text-red-600">{(createPrMutation.error as any)?.message}</span>
+              )}
+            </>
+          ) : (
+            <span className="text-sm text-slate-400">Create a branch first</span>
+          )}
         </div>
       </div>
 
