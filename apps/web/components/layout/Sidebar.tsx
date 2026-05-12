@@ -7,7 +7,7 @@ import { GlassAvatar } from "../ui/GlassAvatar";
 import {
   LayoutDashboard, FolderKanban, Inbox, ClipboardList,
   TestTube, Shield, BarChart3, Bot, Settings, Zap,
-  LogOut, UserCog, ClipboardCheck, ChevronLeft, ChevronRight, Gem,
+  LogOut, UserCog, ClipboardCheck, ChevronLeft, ChevronRight, Gem, GitBranch,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -29,6 +29,7 @@ const NAV: NavItem[] = [
   { href: "/ma",          label: "MA Coverage",  icon: Shield,          group: "Work", roles: ["ADMIN","IT_MANAGER","BA","FULLSTACK","APPROVER"] },
   { href: "/workload",    label: "Workload",     icon: Zap,             group: "Analytics", roles: ["BA","FULLSTACK","IT_MANAGER","ADMIN"] },
   { href: "/performance", label: "Performance",  icon: BarChart3,       group: "Analytics", roles: ["IT_MANAGER","ADMIN"] },
+  { href: "/reports/git/by-project", label: "Git Report", icon: GitBranch, group: "Analytics", roles: ["ADMIN","IT_MANAGER","BA","FULLSTACK"] },
   { href: "/bot",         label: "Bot Sessions", icon: Bot,             group: "Analytics", roles: ["IT_MANAGER","ADMIN","BA","FULLSTACK"] },
   { href: "/settings",    label: "Settings",     icon: UserCog,         group: "System" },
   { href: "/admin",       label: "Admin",        icon: Settings,        group: "System", roles: ["ADMIN"] },

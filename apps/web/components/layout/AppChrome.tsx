@@ -19,7 +19,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
   }
 
   if (isFullscreen) {
-    return <div className="min-h-screen overflow-hidden bg-slate-950">{children}</div>;
+    return <div className="h-screen overflow-hidden bg-slate-950">{children}</div>;
   }
 
   return (

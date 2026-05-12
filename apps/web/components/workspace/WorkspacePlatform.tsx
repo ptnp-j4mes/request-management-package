@@ -286,7 +286,7 @@ export default function WorkspacePlatform() {
       <div className="pointer-events-none fixed -bottom-40 -right-32 h-[28rem] w-[28rem] rounded-full bg-cyan-300/25 blur-[85px]" />
       <div className="pointer-events-none fixed left-[44%] top-[42%] h-96 w-96 rounded-full bg-blue-400/15 blur-[85px]" />
 
-      <div className="relative grid min-h-screen lg:grid-cols-[352px_minmax(0,1fr)]">
+      <div className="relative grid min-h-screen lg:grid-cols-[352px_minmax(0,1fr)] lg:overflow-hidden">
         <aside className="border-b border-white/10 bg-white/[.08] p-5 shadow-[inset_-1px_0_0_rgba(255,255,255,.08)] backdrop-blur-3xl lg:h-screen lg:border-b-0 lg:border-r">
           <div className="flex h-[46vh] flex-col gap-4 overflow-auto pr-1 lg:h-[calc(100vh-2.5rem)]">
             <div className="grid grid-cols-[52px_1fr] items-center gap-3.5 rounded-3xl border border-white/20 bg-gradient-to-br from-white/15 to-white/[.06] p-4 shadow-[0_28px_90px_rgba(0,0,0,.42),inset_0_1px_0_rgba(255,255,255,.12)]">
@@ -353,8 +353,8 @@ export default function WorkspacePlatform() {
           </div>
         </aside>
 
-        <main className="grid min-h-screen grid-rows-[auto_minmax(0,1fr)] lg:h-screen lg:overflow-hidden">
-          <header className="grid gap-4 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center lg:px-6">
+        <main className="flex min-h-0 flex-col lg:h-screen lg:overflow-hidden">
+          <header className="shrink-0 grid gap-4 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center lg:px-6">
             <div className="min-w-0">
               <p className="mb-1.5 text-xs text-white/40">Platform / {activeModule.title} / {activeItem.title}</p>
               <div className="flex flex-wrap items-center gap-3">
@@ -397,8 +397,8 @@ export default function WorkspacePlatform() {
             </div>
           </header>
 
-          <section className="min-h-0 px-5 pb-5 lg:px-6 lg:pb-6">
-            <div className="relative h-full min-h-[640px] overflow-hidden rounded-[28px] border border-white/20 bg-white/[.08] shadow-[0_28px_90px_rgba(0,0,0,.42),inset_0_1px_0_rgba(255,255,255,.12)] backdrop-blur-3xl lg:min-h-0">
+          <section className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 lg:px-6 lg:pb-6">
+            <div className="relative min-h-full min-h-[640px] overflow-hidden rounded-[28px] border border-white/20 bg-white/[.08] shadow-[0_28px_90px_rgba(0,0,0,.42),inset_0_1px_0_rgba(255,255,255,.12)] backdrop-blur-3xl lg:min-h-0">
               {isMock ? (
                 <MockWorkspacePanel item={activeItem} />
               ) : (
