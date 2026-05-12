@@ -2,6 +2,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
+import { GlassInput } from "../../components/ui/GlassInput";
+import { GlassButton } from "../../components/ui/GlassButton";
+import { Gem, Mail, Lock, AlertCircle } from "lucide-react";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:9898";
 
@@ -35,43 +38,63 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="w-full max-w-sm bg-white rounded-xl shadow-md p-8 space-y-6">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Request Platform</h1>
-          <p className="text-sm text-slate-500 mt-1">Sign in to your account</p>
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="w-full max-w-sm animate-fade-in-scale">
+        {/* Logo */}
+        <div className="flex flex-col items-center gap-4 mb-8">
+          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-blue-400/70 to-violet-400/60 shadow-glow-blue">
+            <Gem className="h-7 w-7 text-white" />
+          </div>
+          <div className="text-center">
+            <h1 className="text-2xl font-bold tracking-tight text-white/90">Request Platform</h1>
+            <p className="text-sm text-white/45 mt-1">Sign in to your workspace</p>
+          </div>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-            <input
+
+        {/* Card */}
+        <div className="glass-modal rounded-xl p-7 space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <GlassInput
+              label="Email"
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="alice@example.com"
+              icon={<Mail className="h-4 w-4" />}
             />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
-            <input
+            <GlassInput
+              label="Password"
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="••••••••"
+              icon={<Lock className="h-4 w-4" />}
             />
-          </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
+
+            {error && (
+              <div className="flex items-center gap-2 rounded-sm bg-red-400/10 border border-red-400/20 p-3">
+                <AlertCircle className="h-4 w-4 text-[#f87272] shrink-0" />
+                <p className="text-xs text-[#f87272]">{error}</p>
+              </div>
+            )}
+
+            <GlassButton
+              type="submit"
+              variant="primary"
+              size="lg"
+              loading={loading}
+              className="w-full mt-2"
+            >
+              Sign in
+            </GlassButton>
+          </form>
+
+          <p className="text-center text-[11px] text-white/30">
+            Demo: alice@example.com / password123
+          </p>
+        </div>
       </div>
     </div>
   );
