@@ -3,6 +3,7 @@ import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
 
 import { authRouter } from "./modules/auth/router";
+import { twoFactorRouter } from "./modules/auth/twoFactor.router";
 import { usersRouter } from "./modules/users/router";
 import { projectsRouter } from "./modules/projects/router";
 import { maRouter } from "./modules/maintenance-agreements/router";
@@ -24,6 +25,7 @@ const app = new Elysia()
   .use(swagger({ path: "/docs" }))
   .get("/health", () => ({ status: "ok", timestamp: new Date().toISOString() }))
   .use(authRouter)
+  .use(twoFactorRouter)
   .use(usersRouter)
   .use(projectsRouter)
   .use(maRouter)

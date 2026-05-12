@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
+import * as Dialog from "@radix-ui/react-dialog";
 import { useAuth } from "../../contexts/AuthContext";
 import { settingsApi, githubApi } from "../../lib/api";
 
@@ -20,6 +21,152 @@ function Field({ label, value, onChange, type = "text", placeholder = "" }: {
         placeholder={placeholder}
         className="col-span-2 border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
+    </div>
+  );
+}
+
+// ── Two-Factor Section ────────────────────────────────────────────────────────
+function TwoFactorSection() {
+  const queryClient = useQueryClient();
+  const [phase, setPhase] = useState<"idle" | "verify-enable" | "verify-disable">("idle");
+  const [otpInput, setOtpInput] = useState("");
+  const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const { data: statusData, isLoading: statusLoading } = useQuery({
+    queryKey: ["2fa-status"],
+    queryFn: () => settingsApi.get2faStatus(),
+  });
+  const enabled: boolean = (statusData as any)?.data?.enabled ?? false;
+
+  const enableMutation = useMutation({
+    mutationFn: () => settingsApi.enable2fa(),
+    onSuccess: () => { setPhase("verify-enable"); setFeedback(null); setOtpInput(""); },
+    onError: (e: any) => setFeedback({ ok: false, msg: e.message }),
+  });
+
+  const verifyEnableMutation = useMutation({
+    mutationFn: (code: string) => settingsApi.verifyEnable(code),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["2fa-status"] });
+      setPhase("idle"); setOtpInput("");
+      setFeedback({ ok: true, msg: "2FA enabled. Your account is now more secure." });
+    },
+    onError: (e: any) => setFeedback({ ok: false, msg: e.message }),
+  });
+
+  const disableMutation = useMutation({
+    mutationFn: () => settingsApi.disable2fa(),
+    onSuccess: () => { setPhase("verify-disable"); setFeedback(null); setOtpInput(""); },
+    onError: (e: any) => setFeedback({ ok: false, msg: e.message }),
+  });
+
+  const verifyDisableMutation = useMutation({
+    mutationFn: (code: string) => settingsApi.verifyDisable(code),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["2fa-status"] });
+      setPhase("idle"); setOtpInput("");
+      setFeedback({ ok: true, msg: "2FA has been disabled." });
+    },
+    onError: (e: any) => setFeedback({ ok: false, msg: e.message }),
+  });
+
+  const isModalOpen = phase === "verify-enable" || phase === "verify-disable";
+  const modalTitle = phase === "verify-enable"
+    ? "Enable Two-Factor Authentication"
+    : "Disable Two-Factor Authentication";
+
+  function handleVerify() {
+    if (phase === "verify-enable") verifyEnableMutation.mutate(otpInput);
+    else verifyDisableMutation.mutate(otpInput);
+  }
+
+  return (
+    <div className="bg-white rounded-lg border shadow-sm p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-medium text-slate-900">Two-Factor Authentication (2FA)</h3>
+          <p className="text-sm text-slate-500 mt-0.5">
+            เพิ่มความปลอดภัยด้วยรหัส OTP ทาง email ทุกครั้งที่ login
+          </p>
+        </div>
+        {!statusLoading && (
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+            enabled ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
+          }`}>
+            {enabled ? "Enabled" : "Disabled"}
+          </span>
+        )}
+      </div>
+
+      {feedback && (
+        <p className={`text-sm ${feedback.ok ? "text-green-600" : "text-red-600"}`}>
+          {feedback.msg}
+        </p>
+      )}
+
+      {!enabled ? (
+        <button
+          onClick={() => { setFeedback(null); enableMutation.mutate(); }}
+          disabled={enableMutation.isPending || statusLoading}
+          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          {enableMutation.isPending ? "Sending code…" : "Enable 2FA"}
+        </button>
+      ) : (
+        <button
+          onClick={() => { setFeedback(null); disableMutation.mutate(); }}
+          disabled={disableMutation.isPending || statusLoading}
+          className="px-4 py-2 border border-red-300 text-red-600 text-sm font-medium rounded hover:bg-red-50 disabled:opacity-50 transition-colors"
+        >
+          {disableMutation.isPending ? "Sending code…" : "Disable 2FA"}
+        </button>
+      )}
+
+      <Dialog.Root open={isModalOpen} onOpenChange={(open) => { if (!open) { setPhase("idle"); setOtpInput(""); } }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/40 z-40" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-xl shadow-xl p-6 w-80 space-y-4">
+            <Dialog.Title className="font-semibold text-slate-900">{modalTitle}</Dialog.Title>
+            <Dialog.Description className="text-sm text-slate-500">
+              Enter the 6-digit code we sent to your email address.
+            </Dialog.Description>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={otpInput}
+              onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ""))}
+              placeholder="000000"
+              autoFocus
+              className="w-full text-center text-xl font-mono tracking-widest border-2 rounded-md px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {feedback && !feedback.ok && (
+              <p className="text-sm text-red-600">{feedback.msg}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={handleVerify}
+                disabled={
+                  otpInput.length !== 6 ||
+                  verifyEnableMutation.isPending ||
+                  verifyDisableMutation.isPending
+                }
+                className="flex-1 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {verifyEnableMutation.isPending || verifyDisableMutation.isPending
+                  ? "Verifying…"
+                  : "Verify"}
+              </button>
+              <button
+                onClick={() => { setPhase("idle"); setOtpInput(""); }}
+                className="px-3 py-2 text-sm text-slate-600 border rounded hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }
@@ -99,6 +246,8 @@ function ProfileTab() {
           )}
         </div>
       </div>
+
+      <TwoFactorSection />
 
       <div className="bg-slate-50 rounded-lg border p-4 text-sm text-slate-500 space-y-1">
         <p><span className="font-medium text-slate-700">Username:</span> {me?.username ?? "—"}</p>
