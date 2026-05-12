@@ -1,28 +1,89 @@
+import {
+  clearAuthStorage,
+  getStoredAccessToken,
+  getStoredRefreshToken,
+  syncAccessToken,
+} from "./auth-storage";
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:9898";
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("rm_access_token");
-}
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getToken();
-  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-
-  const res = await fetch(`${BASE}${path}`, {
+async function baseRequest<T>(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(`${BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
-      ...authHeaders,
       ...(init?.headers as Record<string, string> | undefined),
     },
     ...init,
   });
+}
 
-  if (res.status === 401) {
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = getStoredRefreshToken();
+  if (!refreshToken) return null;
+
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const res = await baseRequest<any>("/auth/refresh", {
+          method: "POST",
+          body: JSON.stringify({ refreshToken }),
+        });
+
+        const json = await res.json().catch(() => null);
+        if (!res.ok) return null;
+
+        const nextToken = json?.data?.accessToken ?? null;
+        if (typeof nextToken === "string" && nextToken.length > 0) {
+          syncAccessToken(nextToken);
+          return nextToken;
+        }
+        return null;
+      } catch {
+        return null;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+
+  return refreshPromise;
+}
+
+async function request<T>(path: string, init?: RequestInit, retry = true): Promise<T> {
+  const token = getStoredAccessToken();
+  const res = await baseRequest(path, {
+    ...init,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers as Record<string, string> | undefined),
+    },
+  });
+
+  if (res.status === 401 && retry) {
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) {
+      const retryRes = await baseRequest(path, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${refreshedToken}`,
+          ...(init?.headers as Record<string, string> | undefined),
+        },
+      });
+      if (retryRes.status === 401) {
+        if (typeof window !== "undefined") {
+          clearAuthStorage();
+          window.location.href = "/login";
+        }
+        throw new Error("Unauthorized");
+      }
+      const retryJson = await retryRes.json();
+      if (!retryRes.ok) throw new Error(retryJson.error ?? "Request failed");
+      return retryJson;
+    }
+
     if (typeof window !== "undefined") {
-      localStorage.removeItem("rm_access_token");
-      localStorage.removeItem("rm_user");
-      document.cookie = "rm_token=; path=/; max-age=0";
+      clearAuthStorage();
       window.location.href = "/login";
     }
     throw new Error("Unauthorized");
@@ -118,6 +179,27 @@ export const performanceApi = {
   monthly: () => api.get<any>("/performance/monthly"),
 };
 
+export const gitReportsApi = {
+  byProject: (params: {
+    projectId: number | string;
+    branch?: string;
+    prState?: "open" | "closed" | "all";
+    perPage?: number | string;
+    prLimit?: number | string;
+  }) => {
+    const qs =
+      "?" +
+      new URLSearchParams(
+        Object.entries(params).reduce<Record<string, string>>((acc, [key, value]) => {
+          if (value !== undefined && value !== null && value !== "") acc[key] = String(value);
+          return acc;
+        }, {}),
+      ).toString();
+
+    return api.get<any>(`/reports/git/by-project${qs}`);
+  },
+};
+
 export const githubApi = {
   getSettings: (projectId: number) =>
     api.get<any>(`/projects/${projectId}/github-settings`),
@@ -211,9 +293,17 @@ export const meetingsApi = {
 
 export const authApi = {
   login: (email: string, password: string) =>
-    request<any>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+    baseRequest<any>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }).then(async (res) => {
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Request failed");
+      return json;
+    }),
   me: () => api.get<any>("/auth/me"),
   refresh: (refreshToken: string) =>
-    request<any>("/auth/refresh", { method: "POST", body: JSON.stringify({ refreshToken }) }),
+    baseRequest<any>("/auth/refresh", { method: "POST", body: JSON.stringify({ refreshToken }) }).then(async (res) => {
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Request failed");
+      return json;
+    }),
   logout: () => api.post<any>("/auth/logout", {}),
 };

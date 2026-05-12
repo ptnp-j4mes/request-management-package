@@ -10,6 +10,8 @@ import { sendOtpEmail } from "../../lib/email";
 const JWT_SECRET = process.env.JWT_SECRET ?? "changeme-set-in-env";
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET ?? "changeme-refresh-set-in-env";
 const JWT_2FA_SECRET = process.env.JWT_2FA_SECRET ?? "changeme-2fa-secret";
+const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
+const REFRESH_TOKEN_TTL_SECONDS = 3 * 24 * 60 * 60;
 
 const refreshJwtPlugin = new Elysia({ name: "jwt-refresh-plugin" }).use(
   jwt({ name: "jwtRefresh", secret: JWT_REFRESH_SECRET })
@@ -83,8 +85,8 @@ export const authRouter = new Elysia({ prefix: "/auth" })
         roles: fullUser.roles,
       };
 
-      const accessToken = await jwt.sign({ ...payload, exp: Math.floor(Date.now() / 1000) + 15 * 60 });
-      const refreshToken = await jwtRefresh.sign({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60 });
+      const accessToken = await jwt.sign({ ...payload, exp: Math.floor(Date.now() / 1000) + ACCESS_TOKEN_TTL_SECONDS });
+      const refreshToken = await jwtRefresh.sign({ sub: user.id, exp: Math.floor(Date.now() / 1000) + REFRESH_TOKEN_TTL_SECONDS });
 
       return ok({
         requires2fa: false,
@@ -134,7 +136,7 @@ export const authRouter = new Elysia({ prefix: "/auth" })
         email: fullUser.email ?? "",
         departmentId: fullUser.departmentId ?? null,
         roles: fullUser.roles,
-        exp: Math.floor(Date.now() / 1000) + 15 * 60,
+        exp: Math.floor(Date.now() / 1000) + ACCESS_TOKEN_TTL_SECONDS,
       });
 
       return ok({ accessToken });

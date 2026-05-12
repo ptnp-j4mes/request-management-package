@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
+import { authApi } from "../../lib/api";
 import { GlassInput } from "../../components/ui/GlassInput";
 import { GlassButton } from "../../components/ui/GlassButton";
 import { Gem, Mail, Lock, AlertCircle } from "lucide-react";
@@ -35,19 +36,13 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${BASE}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Login failed");
+      const json = await authApi.login(email, password);
 
       if (json.data.requires2fa) {
         openWebSocket(json.data.pendingToken);
         setPhase("otp");
       } else {
-        login(json.data.accessToken, json.data.user);
+        login(json.data.accessToken, json.data.user, json.data.refreshToken);
         router.replace("/");
       }
     } catch (e: any) {
@@ -76,10 +71,7 @@ export default function LoginPage() {
         setOtpMessage(msg.message ?? "Session expired. Please log in again.");
         ws.close();
       } else if (msg.type === "otp_valid") {
-        login(msg.accessToken, msg.user);
-        if (msg.refreshToken && typeof localStorage !== "undefined") {
-          localStorage.setItem("rm_refresh_token", msg.refreshToken);
-        }
+        login(msg.accessToken, msg.user, msg.refreshToken);
         router.replace("/");
       } else if (msg.type === "otp_invalid") {
         setOtpStatus("error");

@@ -12,6 +12,8 @@ const JWT_SECRET_KEY = new TextEncoder().encode(process.env.JWT_SECRET ?? "chang
 const JWT_REFRESH_KEY = new TextEncoder().encode(
   process.env.JWT_REFRESH_SECRET ?? "changeme-refresh-set-in-env"
 );
+const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
+const REFRESH_TOKEN_TTL_SECONDS = 3 * 24 * 60 * 60;
 
 async function generateAndSendOtp(
   userId: number,
@@ -73,12 +75,12 @@ async function signFullTokens(userId: number) {
     roles: fullUser.roles,
   })
     .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime(now + 15 * 60)
+    .setExpirationTime(now + ACCESS_TOKEN_TTL_SECONDS)
     .sign(JWT_SECRET_KEY);
 
   const refreshToken = await new SignJWT({ sub: String(userId) })
     .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime(now + 7 * 24 * 60 * 60)
+    .setExpirationTime(now + REFRESH_TOKEN_TTL_SECONDS)
     .sign(JWT_REFRESH_KEY);
 
   return {

@@ -1,15 +1,18 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import type { AuthUser } from "@rm/types";
-
-const TOKEN_KEY = "rm_access_token";
-const USER_KEY = "rm_user";
-const COOKIE_NAME = "rm_token";
+import {
+  clearAuthStorage,
+  getStoredAccessToken,
+  getStoredUser,
+  storeAuthSession,
+  subscribeAuthChanges,
+} from "../lib/auth-storage";
 
 type AuthContextValue = {
   user: AuthUser | null;
   token: string | null;
-  login: (token: string, user: AuthUser) => void;
+  login: (token: string, user: AuthUser, refreshToken: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -25,27 +28,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem(TOKEN_KEY);
-    const storedUser = localStorage.getItem(USER_KEY);
-    if (storedToken && storedUser) {
-      try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      } catch {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
-      }
-    }
+    setToken(getStoredAccessToken());
+    setUser(getStoredUser());
     setIsLoading(false);
+
+    return subscribeAuthChanges(() => {
+      setToken(getStoredAccessToken());
+      setUser(getStoredUser());
+    });
   }, []);
 
-  const login = useCallback((newToken: string, newUser: AuthUser) => {
+  const login = useCallback((newToken: string, newUser: AuthUser, refreshToken: string) => {
     setToken(newToken);
     setUser(newUser);
-    localStorage.setItem(TOKEN_KEY, newToken);
-    localStorage.setItem(USER_KEY, JSON.stringify(newUser));
-    // Cookie for Next.js middleware route guard (15 min TTL matching JWT)
-    document.cookie = `${COOKIE_NAME}=${newToken}; path=/; max-age=${15 * 60}; SameSite=Strict`;
+    storeAuthSession({ accessToken: newToken, refreshToken, user: newUser });
   }, []);
 
   const hasRole = useCallback((role: string) => user?.roles.includes(role) ?? false, [user]);
@@ -54,9 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    document.cookie = `${COOKIE_NAME}=; path=/; max-age=0`;
+    clearAuthStorage();
     window.location.href = "/login";
   }, []);
 
