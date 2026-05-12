@@ -162,6 +162,12 @@ export const settingsApi = {
   getMe: () => api.get<any>("/auth/me"),
   updateProfile: (body: { fullName?: string; email?: string; companyName?: string; githubUsername?: string }) =>
     request<any>("/users/me", { method: "PATCH", body: JSON.stringify(body) }),
+  // 2FA
+  get2faStatus: () => api.get<any>("/auth/2fa/status"),
+  enable2fa: () => api.post<any>("/auth/2fa/enable", {}),
+  verifyEnable: (code: string) => api.post<any>("/auth/2fa/verify-enable", { code }),
+  disable2fa: () => api.post<any>("/auth/2fa/disable", {}),
+  verifyDisable: (code: string) => api.post<any>("/auth/2fa/verify-disable", { code }),
   // Google Bot Accounts
   listBotAccounts: () => api.get<any>("/google-bot-accounts"),
   createBotAccount: (body: any) => api.post<any>("/google-bot-accounts", body),

@@ -1,26 +1,33 @@
 import { Elysia, t } from "elysia";
 import { jwt } from "@elysiajs/jwt";
 import { db } from "../../lib/db";
-import { users } from "@rm/db";
-import { eq } from "drizzle-orm";
+import { users, otpTokens } from "@rm/db";
+import { eq, and, isNull } from "drizzle-orm";
 import { ok, err } from "../../lib/response";
 import { jwtPlugin, authenticate, getUserWithRoles } from "../../lib/auth";
+import { sendOtpEmail } from "../../lib/email";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "changeme-set-in-env";
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET ?? "changeme-refresh-set-in-env";
+const JWT_2FA_SECRET = process.env.JWT_2FA_SECRET ?? "changeme-2fa-secret";
 
 const refreshJwtPlugin = new Elysia({ name: "jwt-refresh-plugin" }).use(
   jwt({ name: "jwtRefresh", secret: JWT_REFRESH_SECRET })
 );
 
+const twoFaJwtPlugin = new Elysia({ name: "jwt-2fa-plugin" }).use(
+  jwt({ name: "jwt2fa", secret: JWT_2FA_SECRET })
+);
+
 export const authRouter = new Elysia({ prefix: "/auth" })
   .use(jwtPlugin)
   .use(refreshJwtPlugin)
+  .use(twoFaJwtPlugin)
 
   // POST /auth/login
   .post(
     "/login",
-    async ({ body, jwt, jwtRefresh, set }: any) => {
+    async ({ body, jwt, jwtRefresh, jwt2fa, set }: any) => {
       const { email, password } = body;
 
       const [user] = await db.select().from(users).where(eq(users.email, email));
@@ -39,6 +46,30 @@ export const authRouter = new Elysia({ prefix: "/auth" })
         return err("Invalid credentials");
       }
 
+      // ── 2FA branch ────────────────────────────────────────────────────────
+      if (user.twoFactorEnabled && user.email) {
+        const code = String(Math.floor(100000 + Math.random() * 900000));
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+        // Invalidate previous unused login OTPs
+        await db
+          .update(otpTokens)
+          .set({ usedAt: new Date() })
+          .where(and(eq(otpTokens.userId, user.id), eq(otpTokens.purpose, "login"), isNull(otpTokens.usedAt)));
+
+        await db.insert(otpTokens).values({ userId: user.id, code, purpose: "login", expiresAt });
+        await sendOtpEmail(user.email, code);
+
+        const pendingToken = await jwt2fa.sign({
+          sub: user.id,
+          type: "2fa_pending",
+          exp: Math.floor(Date.now() / 1000) + 15 * 60,
+        });
+
+        return ok({ requires2fa: true, pendingToken });
+      }
+
+      // ── Normal login ───────────────────────────────────────────────────────
       const fullUser = await getUserWithRoles(user.id);
       if (!fullUser) {
         set.status = 500;
@@ -56,6 +87,7 @@ export const authRouter = new Elysia({ prefix: "/auth" })
       const refreshToken = await jwtRefresh.sign({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60 });
 
       return ok({
+        requires2fa: false,
         accessToken,
         refreshToken,
         user: {

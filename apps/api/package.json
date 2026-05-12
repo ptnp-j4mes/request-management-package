@@ -17,6 +17,11 @@
     "@rm/utils": "workspace:*",
     "drizzle-orm": "^0.30.10",
     "elysia": "^1.0.27",
+    "jose": "^6.2.3",
+    "nodemailer": "^8.0.7",
     "postgres": "^3.4.4"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^8.0.0"
   }
 }
