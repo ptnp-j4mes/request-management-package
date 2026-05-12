@@ -44,8 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(newUser);
     localStorage.setItem(TOKEN_KEY, newToken);
     localStorage.setItem(USER_KEY, JSON.stringify(newUser));
-    // Cookie for Next.js middleware route guard (15 min TTL matching JWT)
-    document.cookie = `${COOKIE_NAME}=${newToken}; path=/; max-age=${15 * 60}; SameSite=Strict`;
+    document.cookie = `${COOKIE_NAME}=${newToken}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
   }, []);
 
   const hasRole = useCallback((role: string) => user?.roles.includes(role) ?? false, [user]);

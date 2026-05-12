@@ -3,7 +3,7 @@ import { db } from "../../lib/db";
 import { projectGithubSettings, systemGithubAccount, mitItems, users } from "@rm/db";
 import { ok, err } from "../../lib/response";
 import { eq } from "drizzle-orm";
-import { authenticate, authorize } from "../../lib/auth";
+import { authenticate, authorize, jwtPlugin } from "../../lib/auth";
 
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID ?? "";
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET ?? "";
@@ -83,20 +83,29 @@ async function resolveSettings(projectId: number) {
 }
 
 // ── Router ─────────────────────────────────────────────────────────────────────
+// OAuth connect + callback are on the OUTER router (no authenticate middleware).
+// All other routes are wrapped in an inner Elysia with authenticate so that
+// authenticate's as:"scoped" onBeforeHandle never bleeds onto the OAuth routes.
 
 export const githubRouter = new Elysia()
-  .use(authenticate)
+  .use(jwtPlugin)
 
-  // ── OAuth: initiate (project-level) ──────────────────────────────────────────
-  .get("/auth/github/connect", ({ query, set, user }: any) => {
+  // ── OAuth: initiate — browser navigation, token via ?token= query param ──────
+  .get("/auth/github/connect", async ({ query, set, jwt }: any) => {
     if (!GITHUB_CLIENT_ID) {
       set.status = 500;
       return { error: "GITHUB_CLIENT_ID not configured" };
     }
+    const token = query.token ?? "";
+    const payload = token ? await jwt.verify(token) : null;
+    if (!payload) {
+      set.status = 401;
+      return { success: false, error: "Missing or invalid access token" };
+    }
     const projectId = query.projectId ?? "";
     const isSystem = query.system === "true";
     const state = Buffer.from(
-      JSON.stringify({ projectId, userId: user.id, isSystem }),
+      JSON.stringify({ projectId, userId: Number(payload.sub), isSystem }),
     ).toString("base64url");
     const githubUrl =
       `https://github.com/login/oauth/authorize` +
@@ -107,7 +116,7 @@ export const githubRouter = new Elysia()
     set.redirect = githubUrl;
   })
 
-  // ── OAuth: callback ───────────────────────────────────────────────────────────
+  // ── OAuth: callback — called by GitHub, no Authorization header ──────────────
   .get("/auth/github/callback", async ({ query, set }: any) => {
     const { code, state, error } = query;
 
@@ -201,8 +210,13 @@ export const githubRouter = new Elysia()
     }
   })
 
-  // ── System GitHub Account (ADMIN) ─────────────────────────────────────────────
-  .get("/settings/github-account", async () => {
+  // ── Protected routes — wrapped in inner Elysia so authenticate's scoped
+  //    onBeforeHandle doesn't bleed onto the OAuth routes above ──────────────────
+  .use(new Elysia()
+    .use(authenticate)
+
+    // ── System GitHub Account ────────────────────────────────────────────────────
+    .get("/settings/github-account", async () => {
     const [account] = await db.select().from(systemGithubAccount).limit(1);
     if (!account) return ok(null);
     const { accessToken: _, ...safe } = account;
@@ -529,4 +543,5 @@ export const githubRouter = new Elysia()
       .where(eq(mitItems.id, mitId));
 
     return ok({ deleted: true });
-  });
+  })
+  );

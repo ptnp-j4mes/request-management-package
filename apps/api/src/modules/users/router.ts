@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
 import { db } from "../../lib/db";
-import { users } from "@rm/db";
+import { users, userRoles, roles } from "@rm/db";
 import { ok, err } from "../../lib/response";
 import { eq } from "drizzle-orm";
 import { authenticate, authorize } from "../../lib/auth";
@@ -11,7 +11,17 @@ export const usersRouter = new Elysia({ prefix: "/users" })
   .use(authenticate)
   .get("/", async () => {
     const data = await db.select().from(users).orderBy(users.fullName);
-    return ok(data);
+    const roleRows = await db
+      .select({ userId: userRoles.userId, roleCode: roles.code })
+      .from(userRoles)
+      .innerJoin(roles, eq(roles.id, userRoles.roleId));
+    const roleMap: Record<number, string[]> = {};
+    for (const r of roleRows) {
+      if (!roleMap[r.userId]) roleMap[r.userId] = [];
+      roleMap[r.userId].push(r.roleCode);
+    }
+    const result = data.map(({ passwordHash: _, ...u }: any) => ({ ...u, roles: roleMap[u.id] ?? [] }));
+    return ok(result);
   })
   .get("/:id", async ({ params }: any) => {
     const [user] = await db.select().from(users).where(eq(users.id, Number(params.id)));

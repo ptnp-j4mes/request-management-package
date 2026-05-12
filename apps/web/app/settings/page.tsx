@@ -15,6 +15,126 @@ import { GlassTabs } from "../../components/ui/GlassTabs";
 import { GlassAvatar } from "../../components/ui/GlassAvatar";
 import { EmptyState } from "../../components/ui/EmptyState";
 
+// ── Two-Factor Section ────────────────────────────────────────────────────────
+function TwoFactorSection() {
+  const queryClient = useQueryClient();
+  const [phase, setPhase] = useState<"idle" | "verify-enable" | "verify-disable">("idle");
+  const [otpInput, setOtpInput] = useState("");
+  const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const { data: statusData, isLoading: statusLoading } = useQuery({
+    queryKey: ["2fa-status"],
+    queryFn: () => settingsApi.get2faStatus(),
+  });
+  const enabled: boolean = (statusData as any)?.data?.enabled ?? false;
+
+  const enableMutation = useMutation({
+    mutationFn: () => settingsApi.enable2fa(),
+    onSuccess: () => { setPhase("verify-enable"); setFeedback(null); setOtpInput(""); },
+    onError: (e: any) => setFeedback({ ok: false, msg: e.message }),
+  });
+  const verifyEnableMutation = useMutation({
+    mutationFn: (code: string) => settingsApi.verifyEnable(code),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["2fa-status"] });
+      setPhase("idle"); setOtpInput("");
+      setFeedback({ ok: true, msg: "2FA enabled. Your account is now more secure." });
+    },
+    onError: (e: any) => setFeedback({ ok: false, msg: e.message }),
+  });
+  const disableMutation = useMutation({
+    mutationFn: () => settingsApi.disable2fa(),
+    onSuccess: () => { setPhase("verify-disable"); setFeedback(null); setOtpInput(""); },
+    onError: (e: any) => setFeedback({ ok: false, msg: e.message }),
+  });
+  const verifyDisableMutation = useMutation({
+    mutationFn: (code: string) => settingsApi.verifyDisable(code),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["2fa-status"] });
+      setPhase("idle"); setOtpInput("");
+      setFeedback({ ok: true, msg: "2FA has been disabled." });
+    },
+    onError: (e: any) => setFeedback({ ok: false, msg: e.message }),
+  });
+
+  const isModalOpen = phase !== "idle";
+  const isVerifying = verifyEnableMutation.isPending || verifyDisableMutation.isPending;
+
+  function handleVerify() {
+    if (phase === "verify-enable") verifyEnableMutation.mutate(otpInput);
+    else verifyDisableMutation.mutate(otpInput);
+  }
+
+  return (
+    <GlassCard>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-[.12em] text-white/40">Two-Factor Auth</h3>
+          <p className="text-xs text-white/35 mt-1">เพิ่มความปลอดภัยด้วย OTP ทาง email</p>
+        </div>
+        {!statusLoading && (
+          <GlassBadge color={enabled ? "green" : "slate"} label={enabled ? "Enabled" : "Disabled"} />
+        )}
+      </div>
+
+      {feedback && (
+        <p className={`text-xs mb-3 ${feedback.ok ? "text-[#36d399]" : "text-[#f87272]"}`}>{feedback.msg}</p>
+      )}
+
+      {!enabled ? (
+        <GlassButton
+          variant="secondary" size="sm"
+          loading={enableMutation.isPending || statusLoading}
+          onClick={() => { setFeedback(null); enableMutation.mutate(); }}
+        >
+          Enable 2FA
+        </GlassButton>
+      ) : (
+        <GlassButton
+          variant="danger" size="sm"
+          loading={disableMutation.isPending || statusLoading}
+          onClick={() => { setFeedback(null); disableMutation.mutate(); }}
+        >
+          Disable 2FA
+        </GlassButton>
+      )}
+
+      <GlassModal
+        open={isModalOpen}
+        onClose={() => { setPhase("idle"); setOtpInput(""); }}
+        title={phase === "verify-enable" ? "Enable Two-Factor Authentication" : "Disable Two-Factor Authentication"}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-white/60">Enter the 6-digit code we sent to your email address.</p>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            value={otpInput}
+            onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ""))}
+            placeholder="000000"
+            autoFocus
+            className="w-full rounded-lg border border-white/[.12] bg-white/[.04] px-3 py-3 text-center text-2xl font-mono tracking-widest text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-[#4f9cf9]"
+          />
+          {feedback && !feedback.ok && <p className="text-xs text-[#f87272]">{feedback.msg}</p>}
+          <div className="flex gap-3 justify-end">
+            <GlassButton variant="ghost" onClick={() => { setPhase("idle"); setOtpInput(""); }}>Cancel</GlassButton>
+            <GlassButton
+              variant="primary"
+              loading={isVerifying}
+              disabled={otpInput.length !== 6 || isVerifying}
+              onClick={handleVerify}
+            >
+              {isVerifying ? "Verifying…" : "Verify"}
+            </GlassButton>
+          </div>
+        </div>
+      </GlassModal>
+    </GlassCard>
+  );
+}
+
 // ── Profile Tab ───────────────────────────────────────────────────────────────
 function ProfileTab() {
   const { user: authUser } = useAuth();
@@ -111,6 +231,7 @@ function ProfileTab() {
           </div>
           <p className="text-xs text-white/25 mt-3">ข้อมูลเหล่านี้แก้ไขได้โดย Admin เท่านั้น</p>
         </GlassCard>
+        <TwoFactorSection />
       </div>
     </div>
   );
@@ -119,12 +240,20 @@ function ProfileTab() {
 // ── GitHub Tab ────────────────────────────────────────────────────────────────
 function GithubTab({ isAdmin }: { isAdmin: boolean }) {
   const queryClient = useQueryClient();
-  const { data: sysData } = useQuery({
+  const searchParams = useSearchParams();
+  const { data: sysData, refetch: refetchSys } = useQuery({
     queryKey: ["system-github"],
     queryFn: () => githubApi.getSystemAccount(),
     enabled: isAdmin,
   });
   const sys = sysData?.data;
+
+  useEffect(() => {
+    if (searchParams.get("connected") && isAdmin) {
+      refetchSys();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [label, setLabel] = useState("default");
   const [token, setToken] = useState("");
@@ -179,9 +308,9 @@ function GithubTab({ isAdmin }: { isAdmin: boolean }) {
           </div>
           <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/[.07]">
             <GlassButton variant="primary" size="sm" loading={saveSysMutation.isPending} onClick={() => saveSysMutation.mutate()}>Save</GlassButton>
-            <a href={githubApi.connectSystemUrl()}>
-              <GlassButton variant="secondary" size="sm"><Github className="h-3.5 w-3.5 mr-1.5" /> Connect via OAuth</GlassButton>
-            </a>
+            <GlassButton variant="secondary" size="sm" onClick={() => { window.location.href = githubApi.connectSystemUrl(); }}>
+              <Github className="h-3.5 w-3.5 mr-1.5" /> Connect via OAuth
+            </GlassButton>
             {saveSysMutation.isSuccess && <span className="text-xs text-[#36d399]"><Check className="h-3 w-3 inline mr-1" />Saved</span>}
           </div>
         </GlassCard>

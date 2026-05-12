@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../contexts/AuthContext";
-import { requestsApi } from "../../lib/api";
+import { api, requestsApi } from "../../lib/api";
 import {
   canSubmit, canApprove, canReject,
   canAssignBA, canAssignDev, canAssignQA,
@@ -57,6 +57,56 @@ function InputModal({
             variant={danger ? "danger" : "primary"}
             onClick={() => { if (value.trim()) onConfirm(value.trim()); }}
             disabled={!value.trim()}
+          >
+            {confirmLabel}
+          </GlassButton>
+        </div>
+      </div>
+    </GlassModal>
+  );
+}
+
+function UserSelectModal({
+  title, roles: filterRoles, confirmLabel = "Assign", onConfirm, onClose,
+}: {
+  title: string; roles: string[]; confirmLabel?: string;
+  onConfirm: (userId: number) => void; onClose: () => void;
+}) {
+  const [selected, setSelected] = useState("");
+  const { data } = useQuery({
+    queryKey: ["users"],
+    queryFn: () => api.get<any>("/users"),
+  });
+  const allUsers: any[] = data?.data ?? [];
+  const eligible = allUsers.filter((u: any) =>
+    u.roles?.some((r: string) => filterRoles.includes(r))
+  );
+
+  return (
+    <GlassModal open onClose={onClose} title={title} size="sm">
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <label className="block text-xs font-medium text-white/60">Select User</label>
+          <select
+            className="glass-input w-full px-3 py-2 text-sm rounded-xs"
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            autoFocus
+          >
+            <option value="">— Choose a user —</option>
+            {eligible.map((u: any) => (
+              <option key={u.id} value={u.id}>
+                {u.fullName ?? u.email} ({u.roles?.join(", ")})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex justify-end gap-2">
+          <GlassButton variant="ghost" onClick={onClose}>Cancel</GlassButton>
+          <GlassButton
+            variant="primary"
+            onClick={() => { if (selected) onConfirm(Number(selected)); }}
+            disabled={!selected}
           >
             {confirmLabel}
           </GlassButton>
@@ -161,19 +211,19 @@ export function RequestActions({ request }: Props) {
           onConfirm={(reason) => run(() => requestsApi.qaFail(id, reason))} />
       )}
       {modal === "assign-ba" && (
-        <InputModal title="Assign BA" label="BA User ID" type="number" placeholder="e.g. 5"
-          confirmLabel="Assign" onClose={() => setModal(null)}
-          onConfirm={(val) => run(() => requestsApi.assignBA(id, Number(val)))} />
+        <UserSelectModal title="Assign BA" roles={["BA", "FULLSTACK", "ADMIN"]}
+          onClose={() => setModal(null)}
+          onConfirm={(userId) => run(() => requestsApi.assignBA(id, userId))} />
       )}
       {modal === "assign-dev" && (
-        <InputModal title="Assign Developer" label="Developer User ID" type="number" placeholder="e.g. 12"
-          confirmLabel="Assign" onClose={() => setModal(null)}
-          onConfirm={(val) => run(() => requestsApi.assignDev(id, Number(val)))} />
+        <UserSelectModal title="Assign Developer" roles={["DEVELOPER", "FULLSTACK", "ADMIN"]}
+          onClose={() => setModal(null)}
+          onConfirm={(userId) => run(() => requestsApi.assignDev(id, userId))} />
       )}
       {modal === "assign-qa" && (
-        <InputModal title="Assign QA" label="QA User ID" type="number" placeholder="e.g. 8"
-          confirmLabel="Assign" onClose={() => setModal(null)}
-          onConfirm={(val) => run(() => requestsApi.assignQA(id, Number(val)))} />
+        <UserSelectModal title="Assign QA" roles={["QA", "FULLSTACK", "ADMIN"]}
+          onClose={() => setModal(null)}
+          onConfirm={(userId) => run(() => requestsApi.assignQA(id, userId))} />
       )}
     </>
   );

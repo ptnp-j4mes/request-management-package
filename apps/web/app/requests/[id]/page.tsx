@@ -1,16 +1,16 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { requestsApi } from "../../../lib/api";
+import { requestsApi, projectsApi } from "../../../lib/api";
 import { RequestActions } from "../../../components/requests/RequestActions";
 import Link from "next/link";
-import { MessageSquare, Clock, ChevronRight, User, GitBranch, Bug, RefreshCw } from "lucide-react";
+import { MessageSquare, Clock, ChevronRight, User, GitBranch, Bug, RefreshCw, FolderOpen, Link2 } from "lucide-react";
 import { PageHeader } from "../../../components/ui/PageHeader";
 import { GlassCard } from "../../../components/ui/GlassCard";
 import { GlassBadge, statusColor, priorityColor } from "../../../components/ui/GlassBadge";
 import { GlassButton } from "../../../components/ui/GlassButton";
 import { GlassStepper } from "../../../components/ui/GlassStepper";
-import { GlassInput, GlassTextarea } from "../../../components/ui/GlassInput";
+import { GlassInput, GlassTextarea, GlassSelect } from "../../../components/ui/GlassInput";
 import { GlassModal } from "../../../components/ui/GlassModal";
 import { EmptyState } from "../../../components/ui/EmptyState";
 
@@ -37,6 +37,9 @@ export default function RequestDetailPage({ params }: { params: { id: string } }
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
+  const [linkProjectOpen, setLinkProjectOpen] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [linkLoading, setLinkLoading] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["request", params.id],
@@ -44,6 +47,26 @@ export default function RequestDetailPage({ params }: { params: { id: string } }
     refetchOnWindowFocus: true,
   });
   const request = data?.data;
+
+  const { data: projectsData } = useQuery({
+    queryKey: ["projects"],
+    queryFn: projectsApi.list,
+    enabled: linkProjectOpen,
+  });
+  const projects: any[] = projectsData?.data ?? [];
+
+  async function linkProject() {
+    if (!selectedProjectId) return;
+    setLinkLoading(true);
+    try {
+      await requestsApi.linkProject(Number(params.id), Number(selectedProjectId));
+      qc.invalidateQueries({ queryKey: ["request", params.id] });
+      setLinkProjectOpen(false);
+      setSelectedProjectId("");
+    } finally {
+      setLinkLoading(false);
+    }
+  }
 
   async function submitComment() {
     if (!commentText.trim()) return;
@@ -188,6 +211,29 @@ export default function RequestDetailPage({ params }: { params: { id: string } }
 
         {/* Sidebar — right 1/3 */}
         <div className="space-y-6">
+          {/* Project */}
+          <GlassCard>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="h-4 w-4 text-white/50" />
+                <h2 className="text-sm font-semibold text-white/70">Project</h2>
+              </div>
+              {!request.projectId && (
+                <GlassButton variant="ghost" size="sm" onClick={() => setLinkProjectOpen(true)}>
+                  <Link2 className="h-3.5 w-3.5 mr-1" /> Link
+                </GlassButton>
+              )}
+            </div>
+            {request.projectId ? (
+              <Link href={`/projects/${request.projectId}`} className="flex items-center gap-2 text-sm text-[#4f9cf9] hover:text-[#4f9cf9]/80 transition-colors">
+                <span className="font-mono font-semibold">{request.projectCode ?? request.projectId}</span>
+                {request.projectName && <span className="text-white/50 truncate">— {request.projectName}</span>}
+              </Link>
+            ) : (
+              <p className="text-xs text-white/30">No project linked</p>
+            )}
+          </GlassCard>
+
           {/* Assignees */}
           <GlassCard>
             <div className="flex items-center gap-2 mb-4">
@@ -234,6 +280,27 @@ export default function RequestDetailPage({ params }: { params: { id: string } }
           </GlassCard>
         </div>
       </div>
+
+      {/* Link Project Modal */}
+      <GlassModal open={linkProjectOpen} onClose={() => setLinkProjectOpen(false)} title="Link to Project" size="sm">
+        <div className="space-y-4">
+          <GlassSelect
+            label="Select Project"
+            value={selectedProjectId}
+            onChange={(e) => setSelectedProjectId(e.target.value)}
+            options={[
+              { value: "", label: "— Choose a project —" },
+              ...projects.map((p: any) => ({ value: p.id, label: `${p.projectCode} — ${p.projectName}` })),
+            ]}
+          />
+          <div className="flex justify-end gap-2">
+            <GlassButton variant="ghost" onClick={() => setLinkProjectOpen(false)}>Cancel</GlassButton>
+            <GlassButton variant="primary" loading={linkLoading} disabled={!selectedProjectId} onClick={linkProject}>
+              Link Project
+            </GlassButton>
+          </div>
+        </div>
+      </GlassModal>
 
       {/* Add Comment Modal */}
       <GlassModal open={commentOpen} onClose={() => setCommentOpen(false)} title="Add Comment" size="md">
