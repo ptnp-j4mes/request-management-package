@@ -193,11 +193,7 @@ export default function LoginPage() {
                 className="w-full rounded-lg border border-white/[.12] bg-white/[.04] px-3 py-3 text-center text-2xl font-mono tracking-widest text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-[#4f9cf9]"
               />
               {otpMessage && (
-                <p
-                  className={`text-sm ${
-                    otpStatus === "error" ? "text-[#f87272]" : "text-[#36d399]"
-                  }`}
-                >
+                <p className={`text-sm ${otpStatus === "error" ? "text-[#f87272]" : "text-[#36d399]"}`}>
                   {otpMessage}
                 </p>
               )}

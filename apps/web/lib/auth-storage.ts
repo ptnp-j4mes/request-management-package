@@ -6,7 +6,7 @@ export const ACCESS_TOKEN_KEY = "rm_access_token";
 export const REFRESH_TOKEN_KEY = "rm_refresh_token";
 export const USER_KEY = "rm_user";
 export const COOKIE_NAME = "rm_token";
-export const COOKIE_MAX_AGE = 3 * 24 * 60 * 60;
+export const COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
 const AUTH_CHANGE_EVENT = "rm-auth-change";
 
 function isBrowser() {
@@ -53,12 +53,12 @@ export function setStoredUser(user: AuthUser) {
 
 export function setAuthCookie(value: string) {
   if (!isBrowser()) return;
-  document.cookie = `${COOKIE_NAME}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Strict`;
+  document.cookie = `${COOKIE_NAME}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
 }
 
 export function clearAuthCookie() {
   if (!isBrowser()) return;
-  document.cookie = `${COOKIE_NAME}=; path=/; max-age=0; SameSite=Strict`;
+  document.cookie = `${COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`;
 }
 
 export function storeAuthSession(params: {

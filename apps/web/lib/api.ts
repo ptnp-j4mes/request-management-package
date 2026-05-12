@@ -130,6 +130,7 @@ export const requestsApi = {
   uatApprove:      (id: number) => api.post<any>(`/requests/${id}/uat-approve`, {}),
   close:           (id: number) => api.post<any>(`/requests/${id}/close`, {}),
   addComment: (id: number, commentText: string) => api.post<any>(`/requests/${id}/comments`, { commentText }),
+  linkProject: (id: number, projectId: number | null) => api.patch<any>(`/requests/${id}`, { projectId }),
 };
 
 export const mitApi = {
@@ -214,10 +215,14 @@ export const githubApi = {
   },
   getMitCommits: (mitId: number) =>
     api.get<any>(`/mit-items/${mitId}/commits`),
-  connectUrl: (projectId: number) =>
-    `${BASE}/auth/github/connect?projectId=${projectId}`,
-  connectSystemUrl: () =>
-    `${BASE}/auth/github/connect?system=true`,
+  connectUrl: (projectId: number) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("rm_access_token") ?? "" : "";
+    return `${BASE}/auth/github/connect?projectId=${projectId}&token=${encodeURIComponent(token)}`;
+  },
+  connectSystemUrl: () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("rm_access_token") ?? "" : "";
+    return `${BASE}/auth/github/connect?system=true&token=${encodeURIComponent(token)}`;
+  },
   // Git operations on MIT items
   createBranch: (mitId: number, branchName?: string) =>
     api.post<any>(`/mit-items/${mitId}/github/create-branch`, branchName ? { branchName } : {}),
