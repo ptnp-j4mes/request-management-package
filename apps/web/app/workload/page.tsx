@@ -2,18 +2,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { workloadApi } from "../../lib/api";
-import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
-import { PageHeader } from "../../components/ui/PageHeader";
-import { GlassCard } from "../../components/ui/GlassCard";
-import { GlassTable } from "../../components/ui/GlassTable";
-import { GlassBadge } from "../../components/ui/GlassBadge";
-import { GlassTabs } from "../../components/ui/GlassTabs";
-import { GlassStatCard } from "../../components/ui/GlassStatCard";
-import { EmptyState } from "../../components/ui/EmptyState";
+import { StatCard } from "../../components/dashboard/StatCard";
 
 export default function WorkloadPage() {
-  const [tab, setTab] = useState("user");
+  const [tab, setTab] = useState<"user" | "project" | "overdue">("user");
 
   const { data: byUser } = useQuery({ queryKey: ["workload-by-user"], queryFn: workloadApi.byUser });
   const { data: byProject } = useQuery({ queryKey: ["workload-by-project"], queryFn: workloadApi.byProject });
@@ -23,84 +15,108 @@ export default function WorkloadPage() {
   const projects = byProject?.data ?? [];
   const overdueItems = overdue?.data ?? [];
 
-  const userColumns = [
-    { key: "fullName", header: "Name", render: (v: any) => <span className="font-medium text-white/85">{v}</span> },
-    { key: "roleName", header: "Role", render: (v: any) => v ? <GlassBadge color="blue" label={v} /> : <span className="text-white/30">—</span> },
-    { key: "onHand", header: "On Hand", className: "text-right", render: (v: any) => <span className="text-white/70 font-medium">{v}</span> },
-    { key: "waitingTest", header: "Waiting Test", className: "text-right", render: (v: any) => <span className="text-[#fbbd23]/80">{v}</span> },
-    { key: "waitingUat", header: "Waiting UAT", className: "text-right", render: (v: any) => <span className="text-[#fb923c]/80">{v}</span> },
-    { key: "deployed", header: "Deployed", className: "text-right", render: (v: any) => <span className="text-[#36d399]/80">{v}</span> },
-  ];
-
-  const projectColumns = [
-    { key: "projectCode", header: "Project", render: (_: any, row: any) => (
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-white/40">{row.projectCode}</span>
-        <span className="text-white/75">{row.projectName}</span>
-      </div>
-    )},
-    { key: "total", header: "Total", className: "text-right", render: (v: any) => <span className="text-white/70">{v}</span> },
-    { key: "onHand", header: "On Hand", className: "text-right", render: (v: any) => <span className="font-medium text-white/80">{v}</span> },
-    { key: "waitingTest", header: "Waiting Test", className: "text-right", render: (v: any) => <span className="text-[#fbbd23]/80">{v}</span> },
-    { key: "waitingUat", header: "Waiting UAT", className: "text-right", render: (v: any) => <span className="text-[#fb923c]/80">{v}</span> },
-    { key: "deployed", header: "Deployed", className: "text-right", render: (v: any) => <span className="text-[#36d399]/80">{v}</span> },
-  ];
-
-  const overdueColumns = [
-    { key: "mitNo", header: "No.", render: (v: any) => <span className="font-mono text-xs text-[#f87272]">{v}</span> },
-    { key: "title", header: "Title", render: (v: any, row: any) => (
-      <Link href={`/mit/${row.id}`} className="text-white/85 hover:text-[#4f9cf9] transition-colors">{v}</Link>
-    )},
-    { key: "currentStepCode", header: "Step", render: (v: any) => v ? <span className="font-mono text-xs bg-white/[.08] px-1.5 py-0.5 rounded-xs">{v}</span> : <span className="text-white/30">—</span> },
-    { key: "currentStatus", header: "Status", render: (v: any) => <GlassBadge color="slate" label={v?.replace(/_/g, " ")} /> },
-    { key: "plannedEndDate", header: "Planned End", render: (v: any) => <span className="text-[#f87272] font-medium text-xs">{v}</span> },
-  ];
-
-  const tabs = [
-    { id: "user",    label: "By User",    count: users.length },
-    { id: "project", label: "By Project", count: projects.length },
-    { id: "overdue", label: "Overdue",    count: overdueItems.length },
-  ];
-
-  const totalOnHand = users.reduce((s: number, u: any) => s + u.onHand, 0);
-  const totalTest   = users.reduce((s: number, u: any) => s + u.waitingTest, 0);
-  const totalUat    = users.reduce((s: number, u: any) => s + u.waitingUat, 0);
-  const totalDeploy = users.reduce((s: number, u: any) => s + u.deployed, 0);
-
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <PageHeader title="Workload Report" subtitle="Team workload across all projects" />
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <h1 className="text-2xl font-bold text-slate-900">Workload Report</h1>
 
-      <div className="grid grid-cols-4 gap-4">
-        <GlassStatCard label="On Hand" value={totalOnHand} color="blue" description="Active items" />
-        <GlassStatCard label="Waiting Test" value={totalTest} color="yellow" description="QA queue" />
-        <GlassStatCard label="Waiting UAT" value={totalUat} color="orange" description="UAT queue" />
-        <GlassStatCard label="Deployed" value={totalDeploy} color="green" description="Done" />
+      {/* Tabs */}
+      <div className="flex gap-4 border-b">
+        {[{ key: "user", label: "By User" }, { key: "project", label: "By Project" }, { key: "overdue", label: `Overdue (${overdueItems.length})` }].map(({ key, label }) => (
+          <button key={key} onClick={() => setTab(key as any)}
+            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${tab === key ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}>
+            {label}
+          </button>
+        ))}
       </div>
 
-      <GlassTabs tabs={tabs} active={tab} onChange={setTab} />
+      {tab === "user" && (
+        <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+              <tr>
+                <th className="px-5 py-3 text-left">Name</th>
+                <th className="px-5 py-3 text-left">Role</th>
+                <th className="px-5 py-3 text-right">On Hand</th>
+                <th className="px-5 py-3 text-right">Waiting Test</th>
+                <th className="px-5 py-3 text-right">Waiting UAT</th>
+                <th className="px-5 py-3 text-right">Deployed</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {users.map((u: any) => (
+                <tr key={u.userId} className="hover:bg-slate-50">
+                  <td className="px-5 py-3 font-medium">{u.fullName}</td>
+                  <td className="px-5 py-3 text-slate-500">{u.roleName ?? "—"}</td>
+                  <td className="px-5 py-3 text-right font-medium">{u.onHand}</td>
+                  <td className="px-5 py-3 text-right text-yellow-700">{u.waitingTest}</td>
+                  <td className="px-5 py-3 text-right text-orange-700">{u.waitingUat}</td>
+                  <td className="px-5 py-3 text-right text-green-700">{u.deployed}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      <GlassCard className="p-0">
-        {tab === "user" && (
-          <GlassTable columns={userColumns} rows={users} empty={<EmptyState title="No workload data" />} />
-        )}
-        {tab === "project" && (
-          <GlassTable columns={projectColumns} rows={projects} empty={<EmptyState title="No project data" />} />
-        )}
-        {tab === "overdue" && (
-          <GlassTable
-            columns={overdueColumns}
-            rows={overdueItems}
-            empty={
-              <EmptyState
-                icon={<AlertTriangle className="h-6 w-6 text-[#36d399]" />}
-                title="No overdue items"
-                description="All items are on track"
-              />
-            }
-          />
-        )}
-      </GlassCard>
+      {tab === "project" && (
+        <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+              <tr>
+                <th className="px-5 py-3 text-left">Project</th>
+                <th className="px-5 py-3 text-right">Total</th>
+                <th className="px-5 py-3 text-right">On Hand</th>
+                <th className="px-5 py-3 text-right">Waiting Test</th>
+                <th className="px-5 py-3 text-right">Waiting UAT</th>
+                <th className="px-5 py-3 text-right">Deployed</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {projects.map((p: any) => (
+                <tr key={p.projectId} className="hover:bg-slate-50">
+                  <td className="px-5 py-3 font-medium">
+                    <span className="font-mono text-xs mr-2 text-slate-400">{p.projectCode}</span>
+                    {p.projectName}
+                  </td>
+                  <td className="px-5 py-3 text-right">{p.total}</td>
+                  <td className="px-5 py-3 text-right font-medium">{p.onHand}</td>
+                  <td className="px-5 py-3 text-right text-yellow-700">{p.waitingTest}</td>
+                  <td className="px-5 py-3 text-right text-orange-700">{p.waitingUat}</td>
+                  <td className="px-5 py-3 text-right text-green-700">{p.deployed}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === "overdue" && (
+        <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+              <tr>
+                <th className="px-5 py-3 text-left">No.</th>
+                <th className="px-5 py-3 text-left">Title</th>
+                <th className="px-5 py-3 text-left">Step</th>
+                <th className="px-5 py-3 text-left">Status</th>
+                <th className="px-5 py-3 text-left">Planned End</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {overdueItems.map((m: any) => (
+                <tr key={m.id} className="hover:bg-slate-50">
+                  <td className="px-5 py-3 font-mono text-xs text-red-600">{m.mitNo}</td>
+                  <td className="px-5 py-3">{m.title}</td>
+                  <td className="px-5 py-3 font-mono text-xs">{m.currentStepCode ?? "—"}</td>
+                  <td className="px-5 py-3 capitalize">{m.currentStatus}</td>
+                  <td className="px-5 py-3 text-red-600 font-medium">{m.plannedEndDate}</td>
+                </tr>
+              ))}
+              {overdueItems.length === 0 && <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">No overdue items 🎉</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

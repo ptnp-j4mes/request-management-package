@@ -2,43 +2,49 @@
 import { useQuery } from "@tanstack/react-query";
 import { uatApi } from "../../lib/api";
 import Link from "next/link";
-import { TestTube } from "lucide-react";
-import { PageHeader } from "../../components/ui/PageHeader";
-import { GlassCard } from "../../components/ui/GlassCard";
-import { GlassTable } from "../../components/ui/GlassTable";
-import { GlassBadge } from "../../components/ui/GlassBadge";
-import { EmptyState } from "../../components/ui/EmptyState";
 
 export default function UatPage() {
   const { data, isLoading } = useQuery({ queryKey: ["uat-cycles"], queryFn: uatApi.cycles });
   const cycles = data?.data ?? [];
 
-  const columns = [
-    { key: "cycleName", header: "Cycle Name", render: (v: any, row: any) => (
-      <Link href={`/uat/${row.id}`} className="text-white/85 hover:text-[#4f9cf9] transition-colors font-medium">{v}</Link>
-    )},
-    { key: "projectId", header: "Project", render: (v: any) => <span className="font-mono text-xs text-white/45">{v}</span> },
-    { key: "startDate", header: "Start", render: (v: any) => <span className="text-white/55 text-xs">{v ?? "—"}</span> },
-    { key: "endDate", header: "End", render: (v: any) => <span className="text-white/55 text-xs">{v ?? "—"}</span> },
-    { key: "status", header: "Status", render: (v: any) => (
-      <GlassBadge
-        color={v === "active" ? "green" : v === "completed" ? "blue" : "slate"}
-        label={v}
-      />
-    )},
-  ];
-
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <PageHeader title="UAT Management" subtitle={`${cycles.length} cycles`} />
-      <GlassCard className="p-0">
-        <GlassTable
-          columns={columns}
-          rows={cycles}
-          loading={isLoading}
-          empty={<EmptyState icon={<TestTube className="h-8 w-8" />} title="No UAT cycles" description="UAT cycles will appear here" />}
-        />
-      </GlassCard>
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <h1 className="text-2xl font-bold text-slate-900">UAT Management</h1>
+
+      <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+            <tr>
+              <th className="px-5 py-3 text-left">Cycle Name</th>
+              <th className="px-5 py-3 text-left">Project</th>
+              <th className="px-5 py-3 text-left">Start</th>
+              <th className="px-5 py-3 text-left">End</th>
+              <th className="px-5 py-3 text-left">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {isLoading && <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">Loading…</td></tr>}
+            {cycles.map((c: any) => (
+              <tr key={c.id} className="hover:bg-slate-50">
+                <td className="px-5 py-3">
+                  <Link href={`/uat/${c.id}`} className="text-blue-600 hover:underline font-medium">{c.cycleName}</Link>
+                </td>
+                <td className="px-5 py-3 font-mono text-xs">{c.projectId}</td>
+                <td className="px-5 py-3 text-slate-600">{c.startDate ?? "—"}</td>
+                <td className="px-5 py-3 text-slate-600">{c.endDate ?? "—"}</td>
+                <td className="px-5 py-3">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                    c.status === "active" ? "bg-green-100 text-green-700" :
+                    c.status === "completed" ? "bg-blue-100 text-blue-700" :
+                    "bg-slate-100 text-slate-600"
+                  }`}>{c.status}</span>
+                </td>
+              </tr>
+            ))}
+            {!isLoading && cycles.length === 0 && <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">No UAT cycles</td></tr>}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

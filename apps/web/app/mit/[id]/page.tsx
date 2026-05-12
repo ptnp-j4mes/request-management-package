@@ -1,35 +1,20 @@
 "use client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { mitApi, githubApi } from "../../../lib/api";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 import { WorkflowActionSheet } from "../../../components/mit/WorkflowActionSheet";
-import { GitBranch, GitPullRequest, ExternalLink, RefreshCw, Trash2, Zap, ChevronRight, Clock } from "lucide-react";
-import { PageHeader } from "../../../components/ui/PageHeader";
-import { GlassCard } from "../../../components/ui/GlassCard";
-import { GlassBadge } from "../../../components/ui/GlassBadge";
-import { GlassButton } from "../../../components/ui/GlassButton";
-import { EmptyState } from "../../../components/ui/EmptyState";
-
-const STEP_COLORS: Record<string, "blue"|"yellow"|"orange"|"green"|"slate"> = {
-  DEV: "blue", QA: "yellow", UAT: "orange", MA: "green",
-};
-const STATUS_COLOR: Record<string, "blue"|"green"|"orange"|"slate"> = {
-  deployed: "green", in_qa: "blue", ready_for_qa: "blue",
-  in_development: "orange", assigned_to_dev: "orange", new: "slate",
-};
 
 export default function MitDetailPage({ params }: { params: { id: string } }) {
   const [showAction, setShowAction] = useState(false);
-  const queryClient = useQueryClient();
-
   const { data, isLoading } = useQuery({
     queryKey: ["mit-item", params.id],
     queryFn: () => mitApi.get(Number(params.id)),
   });
   const mit = data?.data;
 
-  const { data: commitsData, isLoading: commitsLoading, refetch: refetchCommits } = useQuery({
+  const { data: commitsData, isLoading: commitsLoading } = useQuery({
     queryKey: ["mit-commits", params.id],
     queryFn: () => githubApi.getMitCommits(Number(params.id)),
     enabled: !!mit,
@@ -37,6 +22,7 @@ export default function MitDetailPage({ params }: { params: { id: string } }) {
   });
   const commits: any[] = commitsData?.data?.commits ?? [];
   const commitsError = commitsData?.success === false ? commitsData?.error : null;
+  const queryClient = useQueryClient();
 
   const createBranchMutation = useMutation({
     mutationFn: () => githubApi.createBranch(Number(params.id)),
@@ -55,227 +41,242 @@ export default function MitDetailPage({ params }: { params: { id: string } }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["mit-item", params.id] }),
   });
 
-  if (isLoading) return <div className="flex items-center justify-center min-h-[400px] text-white/40 animate-pulse">Loading…</div>;
-  if (!mit) return <div className="flex items-center justify-center min-h-[400px] text-[#f87272]">MIT item not found</div>;
+  if (isLoading) return <div className="p-6 text-slate-500">Loading…</div>;
+  if (!mit) return <div className="p-6 text-red-500">MIT item not found</div>;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <PageHeader
-        title={mit.title}
-        breadcrumb={["MIT Board", mit.mitNo]}
-        actions={
-          <div className="flex items-center gap-2">
-            {mit.currentStepCode && <GlassBadge color={STEP_COLORS[mit.currentStepCode] ?? "slate"} label={mit.currentStepCode} />}
-            <GlassBadge color={STATUS_COLOR[mit.currentStatus] ?? "slate"} label={mit.currentStatus?.replace(/_/g, " ")} dot />
-            {mit.priority && <GlassBadge color="slate" label={mit.priority} />}
-            <GlassButton variant="primary" size="sm" onClick={() => setShowAction(true)}>
-              <Zap className="h-3.5 w-3.5 mr-1.5" /> Workflow Action
-            </GlassButton>
+    <div className="p-6 max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <Link href="/mit" className="hover:underline">MIT Board</Link>
+        <span>/</span>
+        <span className="font-mono text-slate-800">{mit.mitNo}</span>
+      </div>
+
+      <div className="bg-white rounded-lg border shadow-sm p-6 space-y-5">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">{mit.title}</h1>
+            <div className="flex gap-3 mt-2 text-sm">
+              <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded">{mit.currentStepCode ?? "—"}</span>
+              <span className="capitalize text-slate-600">{mit.currentStatus}</span>
+              {mit.priority && <span className="capitalize text-slate-500">{mit.priority}</span>}
+            </div>
           </div>
-        }
-      />
-
-      <div className="grid grid-cols-3 gap-6">
-        {/* Main — left 2/3 */}
-        <div className="col-span-2 space-y-6">
-          {/* Details */}
-          <GlassCard>
-            <h2 className="text-sm font-semibold text-white/70 mb-4">Details</h2>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-              {[
-                ["Module", mit.moduleName ?? "—"],
-                ["Type", mit.itemType],
-                ["Planned End", mit.plannedEndDate ?? "—"],
-                ["Est. Hours", mit.estimatedHours ?? "—"],
-                ["QA Done", mit.qaCompletedAt ? new Date(mit.qaCompletedAt).toLocaleDateString() : "—"],
-                ["UAT Done", mit.uatCompletedAt ? new Date(mit.uatCompletedAt).toLocaleDateString() : "—"],
-                ["Deployed", mit.deployedAt ? new Date(mit.deployedAt).toLocaleDateString() : "—"],
-              ].map(([label, val]) => (
-                <div key={label} className="flex gap-2">
-                  <span className="text-white/40 w-28 shrink-0">{label}</span>
-                  <span className="text-white/80 font-medium">{val}</span>
-                </div>
-              ))}
-            </div>
-            {mit.description && (
-              <div className="border-t border-white/[.06] mt-4 pt-4">
-                <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-2">Description</h3>
-                <p className="text-sm text-white/70 leading-relaxed">{mit.description}</p>
-              </div>
-            )}
-          </GlassCard>
-
-          {/* GitHub Panel */}
-          <GlassCard>
-            <div className="flex items-center gap-2 mb-4">
-              <GitBranch className="h-4 w-4 text-[#4f9cf9]" />
-              <h2 className="text-sm font-semibold text-white/70">GitHub</h2>
-            </div>
-
-            {/* Branch */}
-            <div className="flex items-center gap-3 flex-wrap mb-3">
-              <span className="text-xs text-white/40 w-14 shrink-0">Branch</span>
-              {mit.githubBranchName ? (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <code className="text-xs bg-white/[.07] px-2 py-1 rounded-xs font-mono text-[#4f9cf9]">
-                    {mit.githubBranchName}
-                  </code>
-                  <GlassButton
-                    variant="danger"
-                    size="sm"
-                    loading={deleteBranchMutation.isPending}
-                    onClick={() => deleteBranchMutation.mutate()}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </GlassButton>
-                </div>
-              ) : (
-                <GlassButton
-                  variant="secondary"
-                  size="sm"
-                  loading={createBranchMutation.isPending}
-                  onClick={() => createBranchMutation.mutate()}
-                >
-                  <GitBranch className="h-3.5 w-3.5 mr-1.5" />
-                  Create Branch (mit/{mit.mitNo?.toLowerCase()})
-                </GlassButton>
-              )}
-              {createBranchMutation.isError && <span className="text-xs text-[#f87272]">{(createBranchMutation.error as any)?.message}</span>}
-            </div>
-
-            {/* PR */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-xs text-white/40 w-14 shrink-0">PR</span>
-              {mit.githubPrNumber ? (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <a href={mit.githubPrUrl ?? "#"} target="_blank" rel="noreferrer">
-                    <GlassButton variant="ghost" size="sm">
-                      <GitPullRequest className="h-3.5 w-3.5 mr-1.5" /> #{mit.githubPrNumber} View PR
-                      <ExternalLink className="h-3 w-3 ml-1.5" />
-                    </GlassButton>
-                  </a>
-                  <GlassButton
-                    variant="success"
-                    size="sm"
-                    loading={mergePrMutation.isPending}
-                    onClick={() => mergePrMutation.mutate()}
-                  >
-                    Merge PR
-                  </GlassButton>
-                </div>
-              ) : mit.githubBranchName ? (
-                <GlassButton
-                  variant="primary"
-                  size="sm"
-                  loading={createPrMutation.isPending}
-                  onClick={() => createPrMutation.mutate()}
-                >
-                  <GitPullRequest className="h-3.5 w-3.5 mr-1.5" /> Create PR
-                </GlassButton>
-              ) : (
-                <span className="text-xs text-white/30">Create a branch first</span>
-              )}
-              {createPrMutation.isError && <span className="text-xs text-[#f87272]">{(createPrMutation.error as any)?.message}</span>}
-              {mergePrMutation.isError && <span className="text-xs text-[#f87272]">{(mergePrMutation.error as any)?.message}</span>}
-            </div>
-
-            {/* Commits */}
-            <div className="border-t border-white/[.07] mt-4 pt-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wider">
-                  Commits {commits.length > 0 && `(${commits.length})`}
-                  {commitsData?.data?.filterBy && <span className="ml-1 normal-case font-normal">@{commitsData.data.filterBy}</span>}
-                </h3>
-                <GlassButton variant="ghost" size="sm" onClick={() => refetchCommits()}>
-                  <RefreshCw className="h-3 w-3" />
-                </GlassButton>
-              </div>
-
-              {commitsLoading && <p className="text-white/35 text-xs animate-pulse">Fetching commits…</p>}
-              {!commitsLoading && commitsError && <p className="text-[#fbbd23]/80 text-xs">{commitsError}</p>}
-              {!commitsLoading && !commitsError && commits.length === 0 && (
-                <p className="text-white/30 text-xs">No commits found.</p>
-              )}
-
-              <div className="divide-y divide-white/[.05] space-y-0">
-                {commits.map((c: any) => (
-                  <div key={c.fullSha} className="flex items-start gap-3 py-2.5">
-                    <code className="text-xs bg-white/[.06] px-1.5 py-0.5 rounded-xs font-mono text-white/45 shrink-0">{c.sha}</code>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-white/75 truncate">{c.message}</p>
-                      <p className="text-xs text-white/30 mt-0.5">
-                        {c.githubUsername ? `@${c.githubUsername}` : c.author}
-                        {c.committedAt && ` · ${new Date(c.committedAt).toLocaleString()}`}
-                      </p>
-                    </div>
-                    <a href={c.htmlUrl} target="_blank" rel="noreferrer" className="shrink-0">
-                      <GlassButton variant="ghost" size="sm"><ExternalLink className="h-3 w-3" /></GlassButton>
-                    </a>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </GlassCard>
+          <button
+            onClick={() => setShowAction(true)}
+            className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-blue-700"
+          >
+            Workflow Action ⚡
+          </button>
         </div>
 
-        {/* Sidebar — right 1/3 */}
-        <div className="space-y-6">
-          {/* Assignments */}
-          <GlassCard>
-            <h2 className="text-sm font-semibold text-white/70 mb-3">Assignments ({mit.assignments?.length ?? 0})</h2>
-            <div className="space-y-2 text-sm">
-              {(mit.assignments ?? []).map((a: any) => (
-                <div key={a.id} className="flex items-center justify-between rounded-xs bg-white/[.04] px-3 py-2 border border-white/[.06]">
-                  <div>
-                    <span className="text-white/60 capitalize text-xs">{a.assignedRole}</span>
-                    <span className="text-white/35 text-xs ml-2">User {a.assignedUserId}</span>
-                  </div>
-                  <GlassBadge color={a.assignmentStatus === "completed" ? "green" : "slate"} label={a.assignmentStatus} />
-                </div>
-              ))}
-              {(mit.assignments ?? []).length === 0 && <p className="text-white/30 text-xs">No assignments</p>}
-            </div>
-          </GlassCard>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div><span className="text-slate-500">Module:</span> <b>{mit.moduleName ?? "—"}</b></div>
+          <div><span className="text-slate-500">Type:</span> <b>{mit.itemType}</b></div>
+          <div><span className="text-slate-500">Planned End:</span> <b>{mit.plannedEndDate ?? "—"}</b></div>
+          <div><span className="text-slate-500">Estimated Hours:</span> <b>{mit.estimatedHours ?? "—"}</b></div>
+          <div><span className="text-slate-500">QA Completed:</span> <b>{mit.qaCompletedAt ? new Date(mit.qaCompletedAt).toLocaleString() : "—"}</b></div>
+          <div><span className="text-slate-500">UAT Completed:</span> <b>{mit.uatCompletedAt ? new Date(mit.uatCompletedAt).toLocaleString() : "—"}</b></div>
+          <div><span className="text-slate-500">Deployed:</span> <b>{mit.deployedAt ? new Date(mit.deployedAt).toLocaleString() : "—"}</b></div>
+        </div>
 
-          {/* Handoffs */}
-          <GlassCard>
-            <h2 className="text-sm font-semibold text-white/70 mb-3">Handoffs ({mit.handoffs?.length ?? 0})</h2>
-            <div className="space-y-2 text-xs">
-              {(mit.handoffs ?? []).map((h: any) => (
-                <div key={h.id} className="rounded-xs bg-white/[.04] px-3 py-2 border border-white/[.06]">
-                  <div className="flex items-center gap-1.5 text-white/60">
-                    <span>Step {h.fromStepId}</span>
-                    <ChevronRight className="h-3 w-3 text-white/30" />
-                    <span className="text-white/80">{h.toStepId}</span>
-                    <GlassBadge color="slate" label={h.handoffStatus} />
-                  </div>
-                  {h.note && <p className="text-white/35 mt-1">{h.note}</p>}
-                </div>
-              ))}
-              {(mit.handoffs ?? []).length === 0 && <p className="text-white/30">No handoffs</p>}
-            </div>
-          </GlassCard>
+        {mit.description && (
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700 mb-1">Description</h3>
+            <p className="text-sm text-slate-600">{mit.description}</p>
+          </div>
+        )}
+      </div>
 
-          {/* Status History */}
-          <GlassCard>
-            <div className="flex items-center gap-2 mb-3">
-              <Clock className="h-4 w-4 text-white/40" />
-              <h2 className="text-sm font-semibold text-white/70">Status History</h2>
+      {/* Step Assignments */}
+      <div className="bg-white rounded-lg border shadow-sm p-6">
+        <h2 className="font-semibold text-slate-800 mb-3">Step Assignments ({mit.assignments?.length ?? 0})</h2>
+        <div className="space-y-2 text-sm">
+          {(mit.assignments ?? []).map((a: any) => (
+            <div key={a.id} className="flex items-center gap-4 bg-slate-50 rounded px-3 py-2">
+              <span className="font-mono text-xs text-slate-400">Step {a.stepId}</span>
+              <span>User {a.assignedUserId}</span>
+              <span className="capitalize">{a.assignedRole}</span>
+              <span className={`text-xs px-1.5 py-0.5 rounded ${a.assignmentStatus === "completed" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600"}`}>{a.assignmentStatus}</span>
             </div>
-            <div className="space-y-2 text-xs">
-              {(mit.history ?? []).map((h: any) => (
-                <div key={h.id}>
-                  <div className="flex items-center gap-1.5 text-white/60">
-                    <span className="text-white/30">{h.oldStatus ?? "—"}</span>
-                    <ChevronRight className="h-3 w-3 text-white/25" />
-                    <span className="font-medium text-white/80">{h.newStatus}</span>
-                  </div>
-                  <p className="text-white/25 mt-0.5">{new Date(h.changedAt).toLocaleString()}</p>
-                </div>
-              ))}
-              {(mit.history ?? []).length === 0 && <p className="text-white/30">No history</p>}
+          ))}
+        </div>
+      </div>
+
+      {/* Handoffs */}
+      <div className="bg-white rounded-lg border shadow-sm p-6">
+        <h2 className="font-semibold text-slate-800 mb-3">Handoffs ({mit.handoffs?.length ?? 0})</h2>
+        <div className="space-y-2 text-sm">
+          {(mit.handoffs ?? []).map((h: any) => (
+            <div key={h.id} className="flex items-center gap-3 bg-slate-50 rounded px-3 py-2">
+              <span className="text-slate-500 text-xs">{new Date(h.handedOffAt).toLocaleString()}</span>
+              <span>Step {h.fromStepId} → {h.toStepId}</span>
+              <span className="text-xs capitalize">{h.handoffStatus}</span>
+              {h.note && <span className="text-slate-400 text-xs">"{h.note}"</span>}
             </div>
-          </GlassCard>
+          ))}
+        </div>
+      </div>
+
+      {/* Status History */}
+      <div className="bg-white rounded-lg border shadow-sm p-6">
+        <h2 className="font-semibold text-slate-800 mb-3">Status History</h2>
+        <div className="space-y-2 text-sm">
+          {(mit.history ?? []).map((h: any) => (
+            <div key={h.id} className="flex items-center gap-3">
+              <span className="text-slate-400 text-xs">{new Date(h.changedAt).toLocaleString()}</span>
+              <span className="text-slate-500">{h.oldStatus ?? "—"}</span>
+              <span>→</span>
+              <span className="font-medium">{h.newStatus}</span>
+              {h.remark && <span className="text-slate-400 text-xs">({h.remark})</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Git Operations */}
+      <div className="bg-white rounded-lg border shadow-sm p-6 space-y-4">
+        <h2 className="font-semibold text-slate-800">Git Operations</h2>
+
+        {/* Branch */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm text-slate-500 w-16">Branch:</span>
+          {mit.githubBranchName ? (
+            <>
+              <code className="text-sm bg-slate-100 px-2 py-0.5 rounded font-mono text-slate-700">
+                {mit.githubBranchName}
+              </code>
+              <button
+                onClick={() => deleteBranchMutation.mutate()}
+                disabled={deleteBranchMutation.isPending}
+                className="text-xs text-red-500 hover:underline disabled:opacity-50"
+              >
+                {deleteBranchMutation.isPending ? "Deleting…" : "Delete Branch"}
+              </button>
+              {deleteBranchMutation.isError && (
+                <span className="text-xs text-red-600">{(deleteBranchMutation.error as any)?.message}</span>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="text-sm text-slate-400">No branch linked</span>
+              <button
+                onClick={() => createBranchMutation.mutate()}
+                disabled={createBranchMutation.isPending}
+                className="px-3 py-1 bg-slate-900 text-white text-xs font-medium rounded hover:bg-slate-700 disabled:opacity-50"
+              >
+                {createBranchMutation.isPending
+                  ? "Creating…"
+                  : `Create Branch (mit/${mit.mitNo.toLowerCase()})`}
+              </button>
+              {createBranchMutation.isError && (
+                <span className="text-xs text-red-600">{(createBranchMutation.error as any)?.message}</span>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Pull Request */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm text-slate-500 w-16">PR:</span>
+          {mit.githubPrNumber ? (
+            <>
+              <a
+                href={mit.githubPrUrl ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-blue-600 hover:underline font-medium"
+              >
+                #{mit.githubPrNumber} View PR ↗
+              </a>
+              <button
+                onClick={() => mergePrMutation.mutate()}
+                disabled={mergePrMutation.isPending}
+                className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 disabled:opacity-50"
+              >
+                {mergePrMutation.isPending ? "Merging…" : "Merge PR"}
+              </button>
+              {mergePrMutation.isError && (
+                <span className="text-xs text-red-600">{(mergePrMutation.error as any)?.message}</span>
+              )}
+              {mergePrMutation.isSuccess && (
+                <span className="text-xs text-green-600">✓ Merged</span>
+              )}
+            </>
+          ) : mit.githubBranchName ? (
+            <>
+              <span className="text-sm text-slate-400">No PR yet</span>
+              <button
+                onClick={() => createPrMutation.mutate()}
+                disabled={createPrMutation.isPending}
+                className="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {createPrMutation.isPending ? "Creating…" : "Create PR"}
+              </button>
+              {createPrMutation.isError && (
+                <span className="text-xs text-red-600">{(createPrMutation.error as any)?.message}</span>
+              )}
+            </>
+          ) : (
+            <span className="text-sm text-slate-400">Create a branch first</span>
+          )}
+        </div>
+      </div>
+
+      {/* GitHub Commits */}
+      <div className="bg-white rounded-lg border shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-slate-800">
+            GitHub Commits
+            {commits.length > 0 && (
+              <span className="ml-2 text-sm text-slate-400 font-normal">
+                ({commits.length}) — filtered by @{commitsData?.data?.filterBy ?? "all"}
+              </span>
+            )}
+          </h2>
+          {commitsData?.data?.repo && (
+            <span className="font-mono text-xs text-slate-400">
+              {commitsData.data.repo} @ {commitsData.data.branch}
+            </span>
+          )}
+        </div>
+
+        {commitsLoading && <p className="text-slate-400 text-sm">Fetching commits…</p>}
+
+        {!commitsLoading && commitsError && (
+          <p className="text-amber-600 text-sm">{commitsError}</p>
+        )}
+
+        {!commitsLoading && !commitsError && commits.length === 0 && (
+          <p className="text-slate-400 text-sm">
+            No commits found.{" "}
+            {!commitsData?.data?.filterBy && "Set a GitHub username on the assigned developer's profile to filter commits."}
+          </p>
+        )}
+
+        <div className="divide-y divide-slate-100">
+          {commits.map((c: any) => (
+            <div key={c.fullSha} className="flex items-start gap-3 py-3">
+              <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-600 shrink-0 mt-0.5">
+                {c.sha}
+              </code>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-slate-800 truncate">{c.message}</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {c.githubUsername ? `@${c.githubUsername}` : c.author}
+                  {c.committedAt && ` · ${new Date(c.committedAt).toLocaleString()}`}
+                </p>
+              </div>
+              <a
+                href={c.htmlUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-blue-600 hover:underline shrink-0"
+              >
+                View ↗
+              </a>
+            </div>
+          ))}
         </div>
       </div>
 

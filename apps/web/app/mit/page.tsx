@@ -4,24 +4,14 @@ import { useState } from "react";
 import { mitApi, projectsApi } from "../../lib/api";
 import Link from "next/link";
 import { WorkflowActionSheet } from "../../components/mit/WorkflowActionSheet";
-import { Plus, LayoutGrid, List, ClipboardList, Zap } from "lucide-react";
-import { PageHeader } from "../../components/ui/PageHeader";
-import { GlassCard } from "../../components/ui/GlassCard";
-import { GlassTable } from "../../components/ui/GlassTable";
-import { GlassBadge } from "../../components/ui/GlassBadge";
-import { GlassButton } from "../../components/ui/GlassButton";
-import { GlassSelect } from "../../components/ui/GlassInput";
-import { GlassKanbanColumn, GlassKanbanCard } from "../../components/ui/GlassKanbanColumn";
-import { EmptyState } from "../../components/ui/EmptyState";
+import { Plus } from "lucide-react";
 
 const STEPS = ["DEV", "QA", "UAT", "MA"];
-const STEP_COLORS: Record<string, "blue"|"yellow"|"orange"|"green"|"slate"> = {
-  DEV: "blue", QA: "yellow", UAT: "orange", MA: "green",
-};
-
-const STATUS_COLOR: Record<string, "blue"|"green"|"orange"|"slate"|"purple"> = {
-  deployed: "green", in_qa: "blue", ready_for_qa: "blue",
-  in_development: "orange", assigned_to_dev: "orange", new: "slate",
+const stepColors: Record<string, string> = {
+  DEV: "bg-blue-100 text-blue-700 border-blue-200",
+  QA: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  UAT: "bg-orange-100 text-orange-700 border-orange-200",
+  MA: "bg-green-100 text-green-700 border-green-200",
 };
 
 export default function MitBoardPage() {
@@ -44,65 +34,29 @@ export default function MitBoardPage() {
   }, {} as Record<string, any[]>);
   const noStep = items.filter((m) => !m.currentStepCode);
 
-  const listColumns = [
-    { key: "mitNo", header: "No.", render: (v: any) => <span className="font-mono text-xs text-white/40">{v}</span> },
-    { key: "title", header: "Title", render: (v: any, row: any) => (
-      <Link href={`/mit/${row.id}`} className="text-white/85 hover:text-[#4f9cf9] transition-colors truncate max-w-[280px] block">{v}</Link>
-    )},
-    { key: "currentStepCode", header: "Step", render: (v: any) => v ? (
-      <GlassBadge color={STEP_COLORS[v] ?? "slate"} label={v} />
-    ) : <span className="text-white/30">—</span> },
-    { key: "currentStatus", header: "Status", render: (v: any) => (
-      <GlassBadge color={STATUS_COLOR[v] ?? "slate"} label={v?.replace(/_/g, " ")} />
-    )},
-    { key: "priority", header: "Priority", render: (v: any) => v ? <GlassBadge color="slate" label={v} /> : <span className="text-white/30">—</span> },
-    { key: "plannedEndDate", header: "Due", render: (v: any) => <span className="text-white/45 text-xs">{v ?? "—"}</span> },
-    { key: "id", header: "", render: (_: any, row: any) => (
-      <GlassButton variant="ghost" size="sm" onClick={() => setSelectedMitId(row.id)}>
-        <Zap className="h-3.5 w-3.5" />
-      </GlassButton>
-    )},
-  ];
-
   return (
-    <div className="max-w-full space-y-5">
-      <PageHeader
-        title="MIT Work Board"
-        subtitle={`${items.length} items`}
-        actions={
-          <div className="flex items-center gap-3">
-            <GlassSelect
-              value={projectFilter}
-              onChange={(e) => setProjectFilter(e.target.value)}
-              options={[
-                { value: "", label: "All Projects" },
-                ...projects.map((p: any) => ({ value: p.id, label: p.projectCode })),
-              ]}
-            />
-            <div className="flex rounded-xs overflow-hidden border border-white/[.12]">
-              <button
-                onClick={() => setView("kanban")}
-                className={`px-3 py-2 transition-colors ${view === "kanban" ? "bg-[#4f9cf9]/20 text-[#4f9cf9]" : "text-white/45 hover:bg-white/[.06]"}`}
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setView("list")}
-                className={`px-3 py-2 transition-colors ${view === "list" ? "bg-[#4f9cf9]/20 text-[#4f9cf9]" : "text-white/45 hover:bg-white/[.06]"}`}
-              >
-                <List className="h-4 w-4" />
-              </button>
-            </div>
-            <GlassButton variant="primary" size="sm" disabled>
-              <Plus className="h-4 w-4 mr-1.5" /> New MIT
-            </GlassButton>
+    <div className="p-6 max-w-full mx-auto space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">MIT Work Board</h1>
+          <p className="text-slate-500 text-sm mt-1">{items.length} items</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <select className="text-sm border rounded-md px-3 py-2" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
+            <option value="">All Projects</option>
+            {projects.map((p: any) => <option key={p.id} value={p.id}>{p.projectCode}</option>)}
+          </select>
+          <div className="flex border rounded-md overflow-hidden">
+            <button onClick={() => setView("kanban")} className={`px-3 py-1.5 text-sm ${view === "kanban" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}>Kanban</button>
+            <button onClick={() => setView("list")} className={`px-3 py-1.5 text-sm ${view === "list" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}>List</button>
           </div>
-        }
-      />
+          <button className="flex items-center gap-2 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-blue-700">
+            <Plus className="h-4 w-4" /> New MIT
+          </button>
+        </div>
+      </div>
 
-      {isLoading && (
-        <div className="py-12 text-center text-white/40 text-sm animate-pulse">Loading…</div>
-      )}
+      {isLoading && <div className="text-slate-400 py-10 text-center">Loading…</div>}
 
       {/* Kanban View */}
       {view === "kanban" && !isLoading && (
@@ -110,21 +64,32 @@ export default function MitBoardPage() {
           {[...STEPS, "NEW"].map((step) => {
             const colItems = step === "NEW" ? noStep : byStep[step] ?? [];
             return (
-              <GlassKanbanColumn key={step} title={step} count={colItems.length} color={STEP_COLORS[step]}>
-                {colItems.length === 0 && (
-                  <p className="text-center text-white/25 text-xs py-4">Empty</p>
-                )}
-                {colItems.map((m: any) => (
-                  <GlassKanbanCard
-                    key={m.id}
-                    id={m.mitNo}
-                    title={m.title}
-                    badge={<GlassBadge color={STATUS_COLOR[m.currentStatus] ?? "slate"} label={m.currentStatus?.replace(/_/g, " ") ?? ""} />}
-                    onClick={() => window.location.href = `/mit/${m.id}`}
-                    onAction={() => setSelectedMitId(m.id)}
-                  />
-                ))}
-              </GlassKanbanColumn>
+              <div key={step} className="w-72 shrink-0">
+                <div className={`flex items-center justify-between px-3 py-2 rounded-t-lg border ${stepColors[step] ?? "bg-slate-100 text-slate-700 border-slate-200"}`}>
+                  <span className="text-sm font-semibold">{step}</span>
+                  <span className="text-xs font-medium">{colItems.length}</span>
+                </div>
+                <div className="bg-white border border-t-0 rounded-b-lg min-h-48 divide-y">
+                  {colItems.map((m: any) => (
+                    <div key={m.id} className="p-3 hover:bg-slate-50">
+                      <div className="flex items-start justify-between gap-2">
+                        <Link href={`/mit/${m.id}`} className="text-sm font-medium text-blue-600 hover:underline leading-tight">{m.title}</Link>
+                        <button
+                          onClick={() => setSelectedMitId(m.id)}
+                          className="text-xs text-slate-400 hover:text-slate-700 shrink-0 mt-0.5"
+                          title="Workflow action"
+                        >⚡</button>
+                      </div>
+                      <p className="font-mono text-xs text-slate-400 mt-1">{m.mitNo}</p>
+                      <div className="flex items-center gap-1.5 mt-2">
+                        <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded capitalize">{m.currentStatus}</span>
+                        {m.priority && <span className="text-xs text-slate-400">{m.priority}</span>}
+                      </div>
+                    </div>
+                  ))}
+                  {colItems.length === 0 && <p className="p-3 text-xs text-slate-300 text-center">Empty</p>}
+                </div>
+              </div>
             );
           })}
         </div>
@@ -132,23 +97,51 @@ export default function MitBoardPage() {
 
       {/* List View */}
       {view === "list" && !isLoading && (
-        <GlassCard className="p-0">
-          <GlassTable
-            columns={listColumns}
-            rows={items}
-            empty={
-              <EmptyState
-                icon={<ClipboardList className="h-8 w-8" />}
-                title="No MIT items"
-                description="MIT items will appear here"
-              />
-            }
-          />
-        </GlassCard>
+        <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+              <tr>
+                <th className="px-4 py-3 text-left">No.</th>
+                <th className="px-4 py-3 text-left">Title</th>
+                <th className="px-4 py-3 text-left">Step</th>
+                <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3 text-left">Priority</th>
+                <th className="px-4 py-3 text-left">Due</th>
+                <th className="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {items.map((m: any) => (
+                <tr key={m.id} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 font-mono text-xs text-slate-400">{m.mitNo}</td>
+                  <td className="px-4 py-3 max-w-xs">
+                    <Link href={`/mit/${m.id}`} className="text-blue-600 hover:underline truncate block">{m.title}</Link>
+                  </td>
+                  <td className="px-4 py-3">
+                    {m.currentStepCode && (
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-mono font-medium border ${stepColors[m.currentStepCode] ?? ""}`}>{m.currentStepCode}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 capitalize text-slate-600 text-xs">{m.currentStatus}</td>
+                  <td className="px-4 py-3 capitalize text-slate-500 text-xs">{m.priority ?? "—"}</td>
+                  <td className="px-4 py-3 text-slate-400 text-xs">{m.plannedEndDate ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    <button onClick={() => setSelectedMitId(m.id)} className="text-xs text-blue-600 hover:underline">Action</button>
+                  </td>
+                </tr>
+              ))}
+              {items.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">No MIT items</td></tr>}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {selectedMitId && (
-        <WorkflowActionSheet mitId={selectedMitId} currentUserId={1} onClose={() => setSelectedMitId(null)} />
+        <WorkflowActionSheet
+          mitId={selectedMitId}
+          currentUserId={1}
+          onClose={() => setSelectedMitId(null)}
+        />
       )}
     </div>
   );

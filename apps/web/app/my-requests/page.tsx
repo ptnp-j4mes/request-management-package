@@ -1,178 +1,136 @@
 "use client";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { requestsApi } from "../../lib/api";
+import { StatusStepper } from "../../components/requests/StatusStepper";
 import Link from "next/link";
-import { Plus, Clock, CheckCircle, XCircle, Inbox, AlertTriangle } from "lucide-react";
-import { PageHeader } from "../../components/ui/PageHeader";
-import { GlassCard } from "../../components/ui/GlassCard";
-import { GlassBadge } from "../../components/ui/GlassBadge";
-import { GlassButton } from "../../components/ui/GlassButton";
-import { GlassTabs } from "../../components/ui/GlassTabs";
-import { GlassStepper } from "../../components/ui/GlassStepper";
-import { EmptyState } from "../../components/ui/EmptyState";
+import { Plus, Clock, CheckCircle, XCircle } from "lucide-react";
 
-const REQUEST_STEPS = [
-  "draft","submitted","manager_approved","ba_review","waiting_estimate",
-  "assigned_to_dev","in_development","ready_for_qa","in_qa","uat","completed",
-];
-const STEP_LABELS = ["Draft","Submitted","Approved","BA","Estimate","Assign Dev","In Dev","Ready QA","In QA","UAT","Done"];
-
-function requestStepperSteps(status: string) {
-  const idx = REQUEST_STEPS.indexOf(status);
-  return STEP_LABELS.map((label, i) => ({
-    label,
-    status: i < idx ? "done" : i === idx ? "active" : "pending",
-  })) as { label: string; status: "done" | "active" | "pending" }[];
-}
-
-const TYPE_COLOR: Record<string, "red" | "blue" | "purple" | "orange" | "slate"> = {
-  bug: "red",
-  change_request: "blue",
-  support: "purple",
-  uat_finding: "orange",
+const typeColors: Record<string, string> = {
+  bug: "bg-red-100 text-red-700",
+  change_request: "bg-blue-100 text-blue-700",
+  support: "bg-purple-100 text-purple-700",
+  uat_finding: "bg-orange-100 text-orange-700",
 };
 
 const ACTIVE_STATUSES = [
-  "submitted","manager_approved","ba_review","waiting_estimate",
-  "assigned_to_dev","in_development","ready_for_qa","in_qa","uat",
+  "submitted", "manager_approved", "ba_review", "waiting_estimate",
+  "assigned_to_dev", "in_development", "ready_for_qa", "in_qa", "uat",
 ];
-
-const TABS = [
-  { id: "all",    label: "All" },
-  { id: "draft",  label: "Draft" },
-  { id: "active", label: "Active" },
-  { id: "uat",    label: "UAT" },
-  { id: "done",   label: "Done" },
-];
+const DRAFT_STATUSES = ["draft"];
+const DONE_STATUSES  = ["completed", "closed", "rejected"];
 
 export default function MyRequestsPage() {
-  const [tab, setTab] = useState("all");
-
   const { data, isLoading } = useQuery({
     queryKey: ["my-requests"],
     queryFn: () => requestsApi.list({ limit: "100" }),
   });
 
   const all: any[] = data?.data?.items ?? [];
-  const uatWaiting = all.filter((r) => r.status === "uat");
 
-  const filtered = all.filter((r) => {
-    if (tab === "all")    return true;
-    if (tab === "draft")  return r.status === "draft";
-    if (tab === "active") return ACTIVE_STATUSES.includes(r.status);
-    if (tab === "uat")    return r.status === "uat";
-    if (tab === "done")   return ["completed","closed","rejected"].includes(r.status);
-    return true;
-  });
-
-  const tabsWithCount = TABS.map((t) => ({
-    ...t,
-    count: t.id === "all" ? all.length
-         : t.id === "draft"  ? all.filter((r) => r.status === "draft").length
-         : t.id === "active" ? all.filter((r) => ACTIVE_STATUSES.includes(r.status)).length
-         : t.id === "uat"    ? uatWaiting.length
-         : all.filter((r) => ["completed","closed","rejected"].includes(r.status)).length,
-  }));
+  const draft    = all.filter((r) => DRAFT_STATUSES.includes(r.status));
+  const active   = all.filter((r) => ACTIVE_STATUSES.includes(r.status));
+  const done     = all.filter((r) => DONE_STATUSES.includes(r.status));
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <PageHeader
-        title="คำขอของฉัน"
-        subtitle="ติดตามสถานะคำขอทั้งหมดของคุณ"
-        actions={
-          <Link href="/requests/new">
-            <GlassButton variant="primary" size="sm">
-              <Plus className="h-4 w-4 mr-1.5" /> ส่งคำขอใหม่
-            </GlassButton>
-          </Link>
-        }
-      />
-
-      {uatWaiting.length > 0 && (
-        <GlassCard variant="amber" className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-[#fbbd23] shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-white/90">
-                {uatWaiting.length} คำขอรอการ UAT Approve จากคุณ
-              </p>
-              <p className="text-xs text-white/50 mt-0.5">กรุณาตรวจสอบและ Approve เมื่อทดสอบผ่านแล้ว</p>
-            </div>
-          </div>
-          <GlassButton variant="ghost" size="sm" onClick={() => setTab("uat")}>ดู UAT →</GlassButton>
-        </GlassCard>
-      )}
-
-      <GlassTabs tabs={tabsWithCount} active={tab} onChange={setTab} />
+    <div className="p-6 max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">คำขอของฉัน</h1>
+          <p className="text-slate-500 text-sm mt-1">ติดตามสถานะคำขอทั้งหมดของคุณ</p>
+        </div>
+        <Link
+          href="/requests/new"
+          className="flex items-center gap-2 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-blue-700"
+        >
+          <Plus className="h-4 w-4" /> ส่งคำขอใหม่
+        </Link>
+      </div>
 
       {isLoading && (
-        <GlassCard>
-          <div className="py-8 text-center text-white/40 text-sm animate-pulse">กำลังโหลด…</div>
-        </GlassCard>
+        <div className="text-slate-400 text-sm py-8 text-center">กำลังโหลด…</div>
       )}
 
-      {!isLoading && filtered.length === 0 && (
-        <GlassCard>
-          <EmptyState
-            icon={<Inbox className="h-8 w-8" />}
-            title="ไม่มีคำขอในหมวดนี้"
-            description="ส่งคำขอใหม่เพื่อเริ่มต้น"
-            action={
-              <Link href="/requests/new">
-                <GlassButton variant="primary" size="sm">
-                  <Plus className="h-4 w-4 mr-1.5" /> ส่งคำขอใหม่
-                </GlassButton>
-              </Link>
-            }
-          />
-        </GlassCard>
+      {!isLoading && all.length === 0 && (
+        <div className="bg-white rounded-lg border shadow-sm p-10 text-center">
+          <p className="text-slate-400 text-sm">ยังไม่มีคำขอ</p>
+          <Link href="/requests/new" className="mt-3 inline-block text-blue-600 text-sm hover:underline">
+            ส่งคำขอแรกของคุณ →
+          </Link>
+        </div>
       )}
 
-      <div className="space-y-3">
-        {filtered.map((r) => (
-          <RequestCard key={r.id} request={r} />
-        ))}
-      </div>
+      {/* Draft */}
+      {draft.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-2">
+            <Clock className="h-4 w-4 text-slate-400" /> แบบร่าง ({draft.length})
+          </h2>
+          {draft.map((r) => <RequestCard key={r.id} request={r} />)}
+        </section>
+      )}
+
+      {/* Active */}
+      {active.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-blue-600 uppercase tracking-wide flex items-center gap-2">
+            <Clock className="h-4 w-4 text-blue-500" /> กำลังดำเนินการ ({active.length})
+          </h2>
+          {active.map((r) => <RequestCard key={r.id} request={r} />)}
+        </section>
+      )}
+
+      {/* Done */}
+      {done.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-2">
+            <CheckCircle className="h-4 w-4" /> เสร็จสิ้น / ปิด ({done.length})
+          </h2>
+          {done.map((r) => <RequestCard key={r.id} request={r} compact />)}
+        </section>
+      )}
     </div>
   );
 }
 
-function RequestCard({ request }: { request: any }) {
+function RequestCard({ request, compact = false }: { request: any; compact?: boolean }) {
   const isRejected  = request.status === "rejected";
   const isCompleted = request.status === "completed";
   const isClosed    = request.status === "closed";
-  const isDone = isRejected || isCompleted || isClosed;
-  const isUat = request.status === "uat";
 
   return (
-    <GlassCard hover className={isDone ? "opacity-60" : ""}>
-      <div className="flex items-start justify-between gap-3 mb-3">
+    <div className={`bg-white rounded-lg border shadow-sm p-4 space-y-3 ${compact ? "opacity-75" : ""}`}>
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className="font-mono text-xs text-white/35">{request.requestNo}</span>
-            <GlassBadge color={TYPE_COLOR[request.requestType] ?? "slate"} label={request.requestType?.replace("_", " ")} />
-            {request.priority && <GlassBadge color="slate" label={request.priority} />}
-            {isUat && <GlassBadge color="orange" label="รอ UAT" dot />}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono text-xs text-slate-400">{request.requestNo}</span>
+            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${typeColors[request.requestType] ?? "bg-slate-100 text-slate-600"}`}>
+              {request.requestType?.replace("_", " ")}
+            </span>
+            {request.priority && (
+              <span className="text-xs text-slate-400 capitalize">{request.priority}</span>
+            )}
           </div>
           <Link
             href={`/requests/${request.id}`}
-            className="text-sm font-semibold text-white/85 hover:text-[#4f9cf9] transition-colors block truncate"
+            className="text-sm font-semibold text-slate-900 hover:text-blue-600 mt-1 block truncate"
           >
             {request.subject}
           </Link>
         </div>
-        <div className="shrink-0 mt-0.5">
-          {isRejected  && <XCircle     className="h-5 w-5 text-[#f87272]"  />}
-          {isCompleted && <CheckCircle className="h-5 w-5 text-[#36d399]"  />}
-          {isClosed    && <CheckCircle className="h-5 w-5 text-white/35"   />}
+        <div className="shrink-0">
+          {isRejected  && <XCircle     className="h-5 w-5 text-red-400"   />}
+          {isCompleted && <CheckCircle className="h-5 w-5 text-green-500" />}
+          {isClosed    && <CheckCircle className="h-5 w-5 text-slate-400" />}
         </div>
       </div>
 
-      {!isDone && <GlassStepper steps={requestStepperSteps(request.status)} compact />}
+      {/* Status stepper — compact */}
+      {!compact && (
+        <StatusStepper status={request.status} showPercent={true} compact={true} />
+      )}
 
-      {isDone && (
-        <p className="text-xs text-white/35 mt-1">
+      {compact && (
+        <p className="text-xs text-slate-400">
           {isCompleted ? "✓ ดำเนินการเสร็จสิ้นแล้ว" :
            isClosed    ? "■ ปิดแล้ว" :
            isRejected  ? "✗ ถูกปฏิเสธ" : request.status}
@@ -180,12 +138,12 @@ function RequestCard({ request }: { request: any }) {
         </p>
       )}
 
-      <div className="flex items-center justify-between mt-3 text-xs text-white/35">
+      <div className="flex items-center justify-between text-xs text-slate-400">
         <span>อัปเดต: {request.updatedAt ? new Date(request.updatedAt).toLocaleString("th-TH") : "—"}</span>
-        <Link href={`/requests/${request.id}`} className="text-[#4f9cf9] hover:text-[#4f9cf9]/80 transition-colors">
+        <Link href={`/requests/${request.id}`} className="text-blue-600 hover:underline">
           ดูรายละเอียด →
         </Link>
       </div>
-    </GlassCard>
+    </div>
   );
 }
