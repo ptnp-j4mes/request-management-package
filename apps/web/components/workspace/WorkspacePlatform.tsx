@@ -287,8 +287,8 @@ export default function WorkspacePlatform() {
       <div className="pointer-events-none fixed left-[44%] top-[42%] h-96 w-96 rounded-full bg-blue-400/15 blur-[85px]" />
 
       <div className="relative grid min-h-screen lg:grid-cols-[352px_minmax(0,1fr)] lg:overflow-hidden">
-        <aside className="border-b border-white/10 bg-white/[.08] p-5 shadow-[inset_-1px_0_0_rgba(255,255,255,.08)] backdrop-blur-3xl lg:h-screen lg:border-b-0 lg:border-r">
-          <div className="flex h-[46vh] flex-col gap-4 overflow-auto pr-1 lg:h-[calc(100vh-2.5rem)]">
+        <aside className="border-b border-white/10 bg-white/[.08] p-5 shadow-[inset_-1px_0_0_rgba(255,255,255,.08)] backdrop-blur-3xl lg:sticky lg:top-0 lg:h-screen lg:self-start lg:border-b-0 lg:border-r lg:overflow-hidden">
+          <div className="flex h-full min-h-0 flex-col gap-4 pr-1">
             <div className="grid grid-cols-[52px_1fr] items-center gap-3.5 rounded-3xl border border-white/20 bg-gradient-to-br from-white/15 to-white/[.06] p-4 shadow-[0_28px_90px_rgba(0,0,0,.42),inset_0_1px_0_rgba(255,255,255,.12)]">
               <div className="grid h-[52px] w-[52px] place-items-center rounded-[18px] border border-white/30 bg-gradient-to-br from-blue-400/60 to-violet-400/55 text-2xl shadow-[0_0_34px_rgba(79,156,249,.32)]">
                 <Gem className="h-6 w-6" />
@@ -299,7 +299,7 @@ export default function WorkspacePlatform() {
               </div>
             </div>
 
-            <div className="sticky top-0 z-10 bg-transparent pt-0.5">
+            <div className="pt-0.5">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
                 <input
@@ -311,7 +311,7 @@ export default function WorkspacePlatform() {
               </div>
             </div>
 
-            <nav aria-label="Unified platform menu" className="pb-4">
+            <nav aria-label="Unified platform menu" className="min-h-0 flex-1 overflow-y-auto pb-4 pr-1">
               {filteredGroups.map((group) => (
                 <section key={group.label} className="mt-5 first:mt-0">
                   <h2 className="mx-2.5 mb-2.5 text-[10px] font-black uppercase leading-relaxed tracking-[.12em] text-white/40">
@@ -347,7 +347,7 @@ export default function WorkspacePlatform() {
               <p className="mx-2.5 mt-5 text-sm leading-relaxed text-white/40">No matching menu found.</p>
             )}
 
-            <div className="rounded-[20px] border border-white/15 bg-white/[.07] p-4 text-xs leading-relaxed text-white/60">
+            <div className="shrink-0 rounded-[20px] border border-white/15 bg-white/[.07] p-4 text-xs leading-relaxed text-white/60">
               Static HTML จาก zip ถูกนำมาเปิดใน iframe ภายใต้ shell ของ Next.js ส่วนที่ zip ยังไม่มีแบบตรงจะเห็นเป็น mock panel เพื่อให้ merge แล้วต่อ API ได้ทันที
             </div>
           </div>

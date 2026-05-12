@@ -4,7 +4,7 @@ import { projectsApi, requestsApi, mitApi, githubApi } from "../../../lib/api";
 import { useAuth } from "../../../contexts/AuthContext";
 import Link from "next/link";
 import { useState } from "react";
-import { Check, RefreshCw, Github, GitBranch, ExternalLink, Users, Inbox } from "lucide-react";
+import { Check, RefreshCw, Github, GitBranch, GitMerge, GitPullRequest, ExternalLink, Users, Inbox, Plus, Trash2, X } from "lucide-react";
 import { PageHeader } from "../../../components/ui/PageHeader";
 import { GlassCard } from "../../../components/ui/GlassCard";
 import { GlassTable } from "../../../components/ui/GlassTable";
@@ -43,6 +43,19 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   const [repoName, setRepoName] = useState("");
   const [defaultBranch, setDefaultBranch] = useState("main");
   const [settingsSaved, setSettingsSaved] = useState(false);
+  // Branch state
+  const [showNewBranch, setShowNewBranch] = useState(false);
+  const [newBranchName, setNewBranchName] = useState("");
+  const [baseBranch, setBaseBranch] = useState("");
+  const [selectedBranch, setSelectedBranch] = useState("");
+  // PR state
+  const [showNewPr, setShowNewPr] = useState(false);
+  const [prTitle, setPrTitle] = useState("");
+  const [prHead, setPrHead] = useState("");
+  const [prBase, setPrBase] = useState("");
+  const [prBody, setPrBody] = useState("");
+  const [prState, setPrState] = useState<"open"|"closed">("open");
+  const [mergeMethod, setMergeMethod] = useState("squash");
 
   const { data: projData, isLoading } = useQuery({
     queryKey: ["project", params.id],
@@ -70,12 +83,28 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       }
     },
   } as any);
+
+  const ghConnected = !!((ghSettingsData as any)?.data?.isConnected);
+
   const { data: commitsData, isLoading: commitsLoading, refetch: refetchCommits } = useQuery({
-    queryKey: ["github-commits", params.id],
+    queryKey: ["github-commits", params.id, selectedBranch],
     queryFn: () => githubApi.getProjectCommits(Number(params.id)),
-    enabled: activeTab === "GitHub" && !!(ghSettingsData as any)?.data?.isConnected,
+    enabled: activeTab === "GitHub" && ghConnected,
     retry: false,
   });
+  const { data: branchesData, isLoading: branchesLoading, refetch: refetchBranches } = useQuery({
+    queryKey: ["github-branches", params.id],
+    queryFn: () => githubApi.listBranches(Number(params.id)),
+    enabled: activeTab === "GitHub" && ghConnected,
+    retry: false,
+  });
+  const { data: pullsData, isLoading: pullsLoading, refetch: refetchPulls } = useQuery({
+    queryKey: ["github-pulls", params.id, prState],
+    queryFn: () => githubApi.listPulls(Number(params.id), prState),
+    enabled: activeTab === "GitHub" && ghConnected,
+    retry: false,
+  });
+
   const saveSettingsMutation = useMutation({
     mutationFn: () => githubApi.updateSettings(Number(params.id), { repoOwner, repoName, defaultBranch }),
     onSuccess: () => {
@@ -84,12 +113,30 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       setTimeout(() => setSettingsSaved(false), 3000);
     },
   });
+  const createBranchMutation = useMutation({
+    mutationFn: () => githubApi.createProjectBranch(Number(params.id), { branchName: newBranchName, baseBranch: baseBranch || undefined }),
+    onSuccess: () => { setShowNewBranch(false); setNewBranchName(""); setBaseBranch(""); refetchBranches(); },
+  });
+  const deleteBranchMutation = useMutation({
+    mutationFn: (name: string) => githubApi.deleteProjectBranch(Number(params.id), name),
+    onSuccess: () => refetchBranches(),
+  });
+  const createPrMutation = useMutation({
+    mutationFn: () => githubApi.createPull(Number(params.id), { title: prTitle, head: prHead, base: prBase || undefined, body: prBody || undefined }),
+    onSuccess: () => { setShowNewPr(false); setPrTitle(""); setPrHead(""); setPrBase(""); setPrBody(""); refetchPulls(); },
+  });
+  const mergePrMutation = useMutation({
+    mutationFn: (prNumber: number) => githubApi.mergePull(Number(params.id), prNumber, { mergeMethod }),
+    onSuccess: () => { refetchPulls(); refetchBranches(); refetchCommits(); },
+  });
 
   const project = projData?.data;
   const requests = reqData?.data?.items ?? [];
   const mitItems = mitData?.data?.items ?? [];
   const ghSettings = (ghSettingsData as any)?.data;
   const commits: any[] = commitsData?.data ?? [];
+  const branches: any[] = branchesData?.data ?? [];
+  const pulls: any[] = pullsData?.data ?? [];
   const canManageGitHub = hasAnyRole(["IT_MANAGER", "ADMIN"]);
 
   if (isLoading) return <div className="flex items-center justify-center min-h-[400px] text-white/40 animate-pulse">Loading…</div>;
@@ -198,44 +245,43 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
       {activeTab === "GitHub" && (
         <div className="space-y-4">
+          {/* ── Connection + Settings ── */}
           <GlassCard>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <Github className="h-5 w-5 text-white/60" />
                 <div>
                   <h2 className="text-sm font-semibold text-white/80">GitHub Repository</h2>
                   <p className="text-xs text-white/40 mt-0.5">
                     {ghSettings?.isConnected
-                      ? <span className="text-[#36d399]">✓ Connected — {ghSettings.repoOwner}/{ghSettings.repoName} @ {ghSettings.defaultBranch}</span>
+                      ? <span className="text-[#36d399]">✓ {ghSettings.repoOwner}/{ghSettings.repoName} @ {ghSettings.defaultBranch}</span>
                       : "Not connected — OAuth token missing"}
                   </p>
                 </div>
               </div>
-              {canManageGitHub && (
-                <a href={githubApi.connectUrl(Number(params.id))}>
-                  <GlassButton variant="secondary" size="sm">
+              <div className="flex items-center gap-2">
+                {ghSettings?.isConnected && (
+                  <a href={`https://github.com/${ghSettings.repoOwner}/${ghSettings.repoName}`} target="_blank" rel="noreferrer">
+                    <GlassButton variant="ghost" size="sm"><ExternalLink className="h-3.5 w-3.5 mr-1.5" />Open on GitHub</GlassButton>
+                  </a>
+                )}
+                {canManageGitHub && (
+                  <GlassButton variant="secondary" size="sm" onClick={() => { window.location.href = githubApi.connectUrl(Number(params.id)); }}>
                     <Github className="h-3.5 w-3.5 mr-1.5" />
                     {ghSettings?.isConnected ? "Re-connect" : "Connect GitHub"}
                   </GlassButton>
-                </a>
-              )}
+                )}
+              </div>
             </div>
-
             {canManageGitHub && (
-              <div className="border-t border-white/[.07] pt-4 space-y-3">
-                <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">Repository Settings</p>
+              <div className="border-t border-white/[.07] pt-3 space-y-3">
                 <div className="grid grid-cols-3 gap-3">
                   <GlassInput label="Owner / Org" value={repoOwner} onChange={(e) => setRepoOwner(e.target.value)} placeholder="e.g. ptnp-j4mes" />
                   <GlassInput label="Repository Name" value={repoName} onChange={(e) => setRepoName(e.target.value)} placeholder="e.g. my-project" />
                   <GlassInput label="Default Branch" value={defaultBranch} onChange={(e) => setDefaultBranch(e.target.value)} placeholder="main" />
                 </div>
                 <div className="flex items-center gap-3">
-                  <GlassButton
-                    variant="primary" size="sm"
-                    loading={saveSettingsMutation.isPending}
-                    disabled={!repoOwner || !repoName}
-                    onClick={() => saveSettingsMutation.mutate()}
-                  >
+                  <GlassButton variant="primary" size="sm" loading={saveSettingsMutation.isPending} disabled={!repoOwner || !repoName} onClick={() => saveSettingsMutation.mutate()}>
                     Save Settings
                   </GlassButton>
                   {settingsSaved && <span className="text-xs text-[#36d399] flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Saved</span>}
@@ -244,26 +290,245 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
             )}
           </GlassCard>
 
+          {ghConnected && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* ── Branches Panel ── */}
+              <GlassCard className="flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <GitBranch className="h-4 w-4 text-[#4f9cf9]" />
+                    <h3 className="text-sm font-semibold text-white/80">Branches</h3>
+                    {branches.length > 0 && <span className="text-xs text-white/35 bg-white/[.07] px-1.5 py-0.5 rounded-full">{branches.length}</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <GlassButton variant="ghost" size="sm" onClick={() => refetchBranches()}><RefreshCw className="h-3 w-3" /></GlassButton>
+                    {canManageGitHub && (
+                      <GlassButton variant="primary" size="sm" onClick={() => setShowNewBranch(true)}>
+                        <Plus className="h-3.5 w-3.5 mr-1" />New Branch
+                      </GlassButton>
+                    )}
+                  </div>
+                </div>
+
+                {showNewBranch && (
+                  <div className="mb-3 rounded-xl border border-white/[.12] bg-white/[.05] p-3 space-y-2">
+                    <p className="text-xs font-semibold text-white/50 uppercase tracking-wider">Create Branch</p>
+                    <GlassInput label="Branch Name" value={newBranchName} onChange={(e) => setNewBranchName(e.target.value)} placeholder="feat/my-feature" />
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">Base Branch</span>
+                      <select
+                        value={baseBranch}
+                        onChange={(e) => setBaseBranch(e.target.value)}
+                        className="w-full rounded-xl border border-white/[.15] bg-white/[.08] px-3 py-2 text-sm text-white outline-none focus:border-[#4f9cf9]/50"
+                      >
+                        <option value="">Default ({ghSettings?.defaultBranch})</option>
+                        {branches.map((b: any) => (
+                          <option key={b.name} value={b.name}>{b.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <GlassButton variant="primary" size="sm" loading={createBranchMutation.isPending} disabled={!newBranchName} onClick={() => createBranchMutation.mutate()}>
+                        Create
+                      </GlassButton>
+                      <GlassButton variant="ghost" size="sm" onClick={() => { setShowNewBranch(false); setNewBranchName(""); setBaseBranch(""); }}>
+                        <X className="h-3.5 w-3.5" /> Cancel
+                      </GlassButton>
+                    </div>
+                    {createBranchMutation.isError && (
+                      <p className="text-xs text-[#f87272]">{(createBranchMutation.error as any)?.message}</p>
+                    )}
+                  </div>
+                )}
+
+                {branchesLoading && <p className="text-white/40 text-sm animate-pulse py-4 text-center">Loading branches…</p>}
+                <div className="divide-y divide-white/[.06] overflow-auto max-h-96">
+                  {branches.map((b: any) => (
+                    <div
+                      key={b.name}
+                      className={`flex items-center gap-2 py-2.5 px-1 rounded-lg cursor-pointer hover:bg-white/[.04] transition-colors group ${selectedBranch === b.name ? "bg-white/[.06]" : ""}`}
+                      onClick={() => setSelectedBranch(b.name === selectedBranch ? "" : b.name)}
+                    >
+                      <GitBranch className="h-3.5 w-3.5 text-white/30 shrink-0" />
+                      <span className="flex-1 text-sm text-white/80 font-mono truncate">{b.name}</span>
+                      {b.isDefault && <span className="text-[10px] text-[#36d399] border border-[#36d399]/30 px-1.5 py-0.5 rounded-full shrink-0">default</span>}
+                      {b.protected && <span className="text-[10px] text-[#fbbd23] border border-[#fbbd23]/30 px-1.5 py-0.5 rounded-full shrink-0">protected</span>}
+                      <code className="text-[10px] text-white/25 font-mono shrink-0">{b.sha}</code>
+                      {canManageGitHub && !b.isDefault && !b.protected && (
+                        <button
+                          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                          onClick={(e) => { e.stopPropagation(); if (confirm(`Delete branch "${b.name}"?`)) deleteBranchMutation.mutate(b.name); }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-[#f87272]/70 hover:text-[#f87272]" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {!branchesLoading && branches.length === 0 && (
+                    <EmptyState title="No branches" description="Connect GitHub and configure the repo" />
+                  )}
+                </div>
+              </GlassCard>
+
+              {/* ── Pull Requests Panel ── */}
+              <GlassCard className="flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <GitPullRequest className="h-4 w-4 text-[#a78bfa]" />
+                    <h3 className="text-sm font-semibold text-white/80">Pull Requests</h3>
+                    {pulls.length > 0 && <span className="text-xs text-white/35 bg-white/[.07] px-1.5 py-0.5 rounded-full">{pulls.length}</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={prState}
+                      onChange={(e) => setPrState(e.target.value as "open"|"closed")}
+                      className="rounded-lg border border-white/[.12] bg-white/[.07] px-2 py-1 text-xs text-white/70 outline-none"
+                    >
+                      <option value="open">Open</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                    <GlassButton variant="ghost" size="sm" onClick={() => refetchPulls()}><RefreshCw className="h-3 w-3" /></GlassButton>
+                    {canManageGitHub && (
+                      <GlassButton variant="primary" size="sm" onClick={() => { setShowNewPr(true); setPrHead(selectedBranch || ""); setPrBase(ghSettings?.defaultBranch || "main"); }}>
+                        <Plus className="h-3.5 w-3.5 mr-1" />New PR
+                      </GlassButton>
+                    )}
+                  </div>
+                </div>
+
+                {showNewPr && (
+                  <div className="mb-3 rounded-xl border border-white/[.12] bg-white/[.05] p-3 space-y-2">
+                    <p className="text-xs font-semibold text-white/50 uppercase tracking-wider">Create Pull Request</p>
+                    <GlassInput label="Title" value={prTitle} onChange={(e) => setPrTitle(e.target.value)} placeholder="feat: add something awesome" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">From (head)</span>
+                        <select value={prHead} onChange={(e) => setPrHead(e.target.value)} className="w-full rounded-xl border border-white/[.15] bg-white/[.08] px-3 py-2 text-sm text-white outline-none focus:border-[#a78bfa]/50">
+                          <option value="">Select branch…</option>
+                          {branches.map((b: any) => <option key={b.name} value={b.name}>{b.name}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">Into (base)</span>
+                        <select value={prBase} onChange={(e) => setPrBase(e.target.value)} className="w-full rounded-xl border border-white/[.15] bg-white/[.08] px-3 py-2 text-sm text-white outline-none focus:border-[#a78bfa]/50">
+                          {branches.map((b: any) => <option key={b.name} value={b.name}>{b.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">Description (optional)</span>
+                      <textarea
+                        value={prBody}
+                        onChange={(e) => setPrBody(e.target.value)}
+                        rows={3}
+                        placeholder="Describe your changes…"
+                        className="w-full rounded-xl border border-white/[.15] bg-white/[.08] px-3 py-2 text-sm text-white/80 outline-none resize-none placeholder:text-white/25 focus:border-[#a78bfa]/50"
+                      />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <GlassButton variant="primary" size="sm" loading={createPrMutation.isPending} disabled={!prTitle || !prHead} onClick={() => createPrMutation.mutate()}>
+                        Create PR
+                      </GlassButton>
+                      <GlassButton variant="ghost" size="sm" onClick={() => { setShowNewPr(false); setPrTitle(""); setPrHead(""); setPrBody(""); }}>
+                        <X className="h-3.5 w-3.5" /> Cancel
+                      </GlassButton>
+                    </div>
+                    {createPrMutation.isError && (
+                      <p className="text-xs text-[#f87272]">{(createPrMutation.error as any)?.message}</p>
+                    )}
+                  </div>
+                )}
+
+                {pullsLoading && <p className="text-white/40 text-sm animate-pulse py-4 text-center">Loading PRs…</p>}
+                <div className="divide-y divide-white/[.06] overflow-auto max-h-96">
+                  {pulls.map((pr: any) => (
+                    <div key={pr.number} className="py-3 px-1 space-y-1.5">
+                      <div className="flex items-start gap-2">
+                        <GitPullRequest className={`h-4 w-4 shrink-0 mt-0.5 ${pr.state === "open" ? "text-[#36d399]" : "text-[#a78bfa]"}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <a href={pr.htmlUrl} target="_blank" rel="noreferrer" className="text-sm text-white/85 hover:text-[#4f9cf9] font-medium transition-colors truncate">
+                              {pr.title}
+                            </a>
+                            {pr.draft && <span className="text-[10px] text-white/40 border border-white/20 px-1.5 py-0.5 rounded-full shrink-0">Draft</span>}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1 text-xs text-white/35">
+                            <span className="font-mono">#{pr.number}</span>
+                            <span>·</span>
+                            <span className="font-mono text-[#4f9cf9]/80">{pr.head}</span>
+                            <span className="text-white/25">→</span>
+                            <span className="font-mono text-white/50">{pr.base}</span>
+                            {pr.author && <><span>·</span><span>@{pr.author}</span></>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <a href={pr.htmlUrl} target="_blank" rel="noreferrer">
+                            <GlassButton variant="ghost" size="sm"><ExternalLink className="h-3 w-3" /></GlassButton>
+                          </a>
+                          {canManageGitHub && pr.state === "open" && (
+                            <div className="flex items-center gap-1">
+                              <select
+                                value={mergeMethod}
+                                onChange={(e) => setMergeMethod(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="rounded-lg border border-white/[.12] bg-white/[.07] px-1.5 py-1 text-xs text-white/60 outline-none"
+                              >
+                                <option value="squash">Squash</option>
+                                <option value="merge">Merge</option>
+                                <option value="rebase">Rebase</option>
+                              </select>
+                              <GlassButton
+                                variant="primary" size="sm"
+                                loading={mergePrMutation.isPending}
+                                onClick={() => { if (confirm(`Merge PR #${pr.number}?`)) mergePrMutation.mutate(pr.number); }}
+                              >
+                                <GitMerge className="h-3.5 w-3.5 mr-1" />Merge
+                              </GlassButton>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {!pullsLoading && pulls.length === 0 && (
+                    <EmptyState title={`No ${prState} pull requests`} description="Create a PR from a feature branch" />
+                  )}
+                </div>
+              </GlassCard>
+            </div>
+          )}
+
+          {/* ── Commits ── */}
           <GlassCard>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <GitBranch className="h-4 w-4 text-white/50" />
-                <h2 className="text-sm font-semibold text-white/80">Recent Commits {commits.length > 0 && <span className="text-white/35 font-normal">({commits.length})</span>}</h2>
+                <h2 className="text-sm font-semibold text-white/80">
+                  Commits
+                  {selectedBranch && <span className="ml-2 font-mono text-xs text-[#4f9cf9]/80">@ {selectedBranch}</span>}
+                  {commits.length > 0 && <span className="ml-1 text-white/35 font-normal">({commits.length})</span>}
+                </h2>
               </div>
-              <GlassButton variant="ghost" size="sm" onClick={() => refetchCommits()}>
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh
-              </GlassButton>
+              <div className="flex items-center gap-2">
+                {selectedBranch && (
+                  <button onClick={() => setSelectedBranch("")} className="text-xs text-white/40 hover:text-white/70 flex items-center gap-1">
+                    <X className="h-3 w-3" /> Clear filter
+                  </button>
+                )}
+                <GlassButton variant="ghost" size="sm" onClick={() => refetchCommits()}>
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh
+                </GlassButton>
+              </div>
             </div>
 
             {commitsLoading && <p className="text-white/40 text-sm animate-pulse">Fetching commits…</p>}
             {!commitsLoading && !ghSettings?.isConnected && (
               <p className="text-[#fbbd23]/80 text-sm">Connect GitHub and save repo settings to view commits.</p>
             )}
-
             <div className="divide-y divide-white/[.06]">
               {commits.map((c: any) => (
                 <div key={c.fullSha} className="flex items-start gap-3 py-3">
-                  <code className="text-xs bg-white/[.07] px-1.5 py-0.5 rounded-xs font-mono text-white/55 shrink-0 mt-0.5">{c.sha}</code>
+                  <code className="text-xs bg-white/[.07] px-1.5 py-0.5 rounded font-mono text-white/55 shrink-0 mt-0.5">{c.sha}</code>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-white/80 truncate">{c.message}</p>
                     <p className="text-xs text-white/35 mt-0.5">
@@ -334,7 +599,6 @@ function ProjectProgress({ project, mitItems }: { project: any; mitItems: any[] 
         </GlassCard>
       )}
 
-      {/* Timeline */}
       {timelinePct !== null && (
         <GlassCard>
           <h3 className="text-sm font-semibold text-white/70 mb-3">Timeline</h3>
