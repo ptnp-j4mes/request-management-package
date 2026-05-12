@@ -1,6 +1,12 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
+import { Shield } from "lucide-react";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { GlassCard } from "../../components/ui/GlassCard";
+import { GlassTable } from "../../components/ui/GlassTable";
+import { GlassBadge } from "../../components/ui/GlassBadge";
+import { EmptyState } from "../../components/ui/EmptyState";
 
 export default function MaPage() {
   const { data, isLoading } = useQuery({
@@ -9,40 +15,28 @@ export default function MaPage() {
   });
   const mas = data?.data ?? [];
 
-  return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">MA Coverage</h1>
+  const columns = [
+    { key: "id", header: "ID", render: (v: any) => <span className="font-mono text-xs text-white/40">#{v}</span> },
+    { key: "projectId", header: "Project", render: (v: any) => <span className="font-mono text-xs text-white/55">{v}</span> },
+    { key: "maType", header: "Type", render: (v: any) => <span className="capitalize text-white/70">{v}</span> },
+    { key: "startDate", header: "Start", render: (v: any) => <span className="text-white/55 text-xs">{v ?? "—"}</span> },
+    { key: "endDate", header: "End", render: (v: any) => <span className="text-white/55 text-xs">{v ?? "—"}</span> },
+    { key: "status", header: "Status", render: (v: any) => (
+      <GlassBadge color={v === "active" ? "green" : v === "expired" ? "red" : "slate"} label={v} />
+    )},
+  ];
 
-      <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
-            <tr>
-              <th className="px-5 py-3 text-left">ID</th>
-              <th className="px-5 py-3 text-left">Project</th>
-              <th className="px-5 py-3 text-left">Type</th>
-              <th className="px-5 py-3 text-left">Start</th>
-              <th className="px-5 py-3 text-left">End</th>
-              <th className="px-5 py-3 text-left">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {isLoading && <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">Loading…</td></tr>}
-            {mas.map((ma: any) => (
-              <tr key={ma.id} className="hover:bg-slate-50">
-                <td className="px-5 py-3 font-mono text-xs text-slate-400">#{ma.id}</td>
-                <td className="px-5 py-3 font-mono text-xs">{ma.projectId}</td>
-                <td className="px-5 py-3 capitalize">{ma.maType}</td>
-                <td className="px-5 py-3">{ma.startDate}</td>
-                <td className="px-5 py-3">{ma.endDate}</td>
-                <td className="px-5 py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${ma.status === "active" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600"}`}>{ma.status}</span>
-                </td>
-              </tr>
-            ))}
-            {!isLoading && mas.length === 0 && <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">No maintenance agreements</td></tr>}
-          </tbody>
-        </table>
-      </div>
+  return (
+    <div className="max-w-7xl mx-auto space-y-6">
+      <PageHeader title="MA Coverage" subtitle="Maintenance agreements" />
+      <GlassCard className="p-0">
+        <GlassTable
+          columns={columns}
+          rows={mas}
+          loading={isLoading}
+          empty={<EmptyState icon={<Shield className="h-8 w-8" />} title="No maintenance agreements" description="MA agreements will appear here" />}
+        />
+      </GlassCard>
     </div>
   );
 }

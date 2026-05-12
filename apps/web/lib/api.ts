@@ -68,6 +68,7 @@ export const requestsApi = {
   qaFail:          (id: number, reason: string) => api.post<any>(`/requests/${id}/qa-fail`, { reason }),
   uatApprove:      (id: number) => api.post<any>(`/requests/${id}/uat-approve`, {}),
   close:           (id: number) => api.post<any>(`/requests/${id}/close`, {}),
+  addComment: (id: number, commentText: string) => api.post<any>(`/requests/${id}/comments`, { commentText }),
 };
 
 export const mitApi = {
@@ -174,6 +175,38 @@ export const settingsApi = {
     request<any>(`/google-bot-accounts/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   disableBotAccount: (id: number) => api.post<any>(`/google-bot-accounts/${id}/disable`, {}),
   setDefaultBotAccount: (id: number) => api.post<any>(`/google-bot-accounts/${id}/set-default`, {}),
+};
+
+export const meetingsApi = {
+  list: (projectId: number) => api.get<any>(`/projects/${projectId}/meetings`),
+  get: (projectId: number, meetingId: number) => api.get<any>(`/projects/${projectId}/meetings/${meetingId}`),
+  create: (projectId: number, body: { title: string; startAt: string; endAt?: string; meetingUrl?: string }) =>
+    api.post<any>(`/projects/${projectId}/meetings`, body),
+  update: (projectId: number, meetingId: number, body: any) =>
+    request<any>(`/projects/${projectId}/meetings/${meetingId}`, { method: "PUT", body: JSON.stringify(body) }),
+  delete: (projectId: number, meetingId: number) =>
+    api.delete<any>(`/projects/${projectId}/meetings/${meetingId}`),
+  botJoin: (projectId: number, meetingId: number) =>
+    api.post<any>(`/projects/${projectId}/meetings/${meetingId}/bot-join-now`, {}),
+  transcribe: (projectId: number, meetingId: number) =>
+    api.post<any>(`/projects/${projectId}/meetings/${meetingId}/transcribe`, {}),
+  summarize: (projectId: number, meetingId: number, body?: { transcriptText?: string }) =>
+    api.post<any>(`/projects/${projectId}/meetings/${meetingId}/summarize`, body ?? {}),
+  getSummary: (projectId: number, meetingId: number) =>
+    api.get<any>(`/projects/${projectId}/meetings/${meetingId}/summary`),
+  getLogs: (projectId: number, meetingId: number) =>
+    api.get<any>(`/projects/${projectId}/meetings/${meetingId}/logs`),
+  actionItems: (projectId: number, meetingId: number) =>
+    api.get<any>(`/projects/${projectId}/meetings/${meetingId}/action-items`),
+  addActionItem: (projectId: number, meetingId: number, body: { title: string; ownerName?: string; dueDate?: string }) =>
+    api.post<any>(`/projects/${projectId}/meetings/${meetingId}/action-items`, body),
+  updateActionItem: (projectId: number, meetingId: number, itemId: number, body: any) =>
+    api.patch<any>(`/projects/${projectId}/meetings/${meetingId}/action-items/${itemId}`, body),
+  deleteActionItem: (projectId: number, meetingId: number, itemId: number) =>
+    api.delete<any>(`/projects/${projectId}/meetings/${meetingId}/action-items/${itemId}`),
+  getMeetingSettings: (projectId: number) => api.get<any>(`/projects/${projectId}/meeting-settings`),
+  updateMeetingSettings: (projectId: number, body: any) =>
+    request<any>(`/projects/${projectId}/meeting-settings`, { method: "PUT", body: JSON.stringify(body) }),
 };
 
 export const authApi = {

@@ -1,29 +1,20 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useAuth } from "../../contexts/AuthContext";
 import { settingsApi, githubApi } from "../../lib/api";
-
-// ── Reusable field row ────────────────────────────────────────────────────────
-function Field({ label, value, onChange, type = "text", placeholder = "" }: {
-  label: string; value: string; onChange: (v: string) => void;
-  type?: string; placeholder?: string;
-}) {
-  return (
-    <div className="grid grid-cols-3 gap-4 items-center py-3 border-b last:border-0">
-      <label className="text-sm font-medium text-slate-700">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="col-span-2 border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
-    </div>
-  );
-}
+import { Check, Github, Bot, AlertCircle, Pencil, X } from "lucide-react";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { GlassCard } from "../../components/ui/GlassCard";
+import { GlassInput } from "../../components/ui/GlassInput";
+import { GlassButton } from "../../components/ui/GlassButton";
+import { GlassModal } from "../../components/ui/GlassModal";
+import { GlassBadge } from "../../components/ui/GlassBadge";
+import { GlassTabs } from "../../components/ui/GlassTabs";
+import { GlassAvatar } from "../../components/ui/GlassAvatar";
+import { EmptyState } from "../../components/ui/EmptyState";
 
 // ── Two-Factor Section ────────────────────────────────────────────────────────
 function TwoFactorSection() {
@@ -175,11 +166,7 @@ function TwoFactorSection() {
 function ProfileTab() {
   const { user: authUser } = useAuth();
   const queryClient = useQueryClient();
-
-  const { data: meData } = useQuery({
-    queryKey: ["me-full"],
-    queryFn: () => settingsApi.getMe(),
-  });
+  const { data: meData } = useQuery({ queryKey: ["me-full"], queryFn: () => settingsApi.getMe() });
   const me = meData?.data;
 
   const [fullName, setFullName] = useState("");
@@ -202,58 +189,77 @@ function ProfileTab() {
   });
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <h2 className="text-base font-semibold text-slate-900">Profile</h2>
-        <p className="text-sm text-slate-500 mt-0.5">แก้ไขข้อมูลส่วนตัวของคุณ</p>
-      </div>
-
-      <div className="bg-white rounded-lg border shadow-sm p-5">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm">
-            {(me?.fullName ?? authUser?.name ?? "?")[0]?.toUpperCase()}
+    <div className="grid grid-cols-[1fr_320px] gap-5 items-start">
+      {/* Left — editable profile form */}
+      <GlassCard>
+        {/* Profile header */}
+        <div className="flex items-center gap-5 mb-6 pb-5 border-b border-white/[.07]">
+          <div className="relative flex-shrink-0">
+            <div className="h-20 w-20 rounded-full flex items-center justify-center text-2xl font-black bg-gradient-to-br from-[#4f9cf9]/60 to-[#a78bfa]/50 border border-white/20 shadow-glow-blue">
+              {(me?.fullName ?? authUser?.name ?? "?")[0]?.toUpperCase()}
+            </div>
+            <span className="absolute bottom-0.5 right-0.5 h-3.5 w-3.5 rounded-full bg-[#36d399] border-2 border-[#07111f]" />
           </div>
           <div>
-            <p className="font-medium text-slate-900">{me?.fullName ?? authUser?.name}</p>
-            <p className="text-xs text-slate-400">{authUser?.roles?.join(", ")}</p>
+            <p className="text-lg font-semibold text-white/90 leading-tight">{me?.fullName ?? authUser?.name ?? "—"}</p>
+            <p className="text-sm text-white/50 mt-0.5">{me?.email ?? "—"}</p>
+            <div className="flex gap-1.5 mt-2 flex-wrap">
+              {authUser?.roles?.map((r) => (
+                <span key={r} className="px-2 py-0.5 rounded-full bg-white/[.08] border border-white/[.12] text-[11px] text-white/60">{r}</span>
+              ))}
+            </div>
           </div>
         </div>
 
-        <Field label="Full Name" value={fullName} onChange={setFullName} placeholder="Your full name" />
-        <Field label="Email" value={email} onChange={setEmail} type="email" placeholder="you@company.com" />
-        <Field label="Company" value={companyName} onChange={setCompanyName} placeholder="Company name" />
-        <Field
-          label="GitHub Username"
-          value={githubUsername}
-          onChange={setGithubUsername}
-          placeholder="e.g. alice-dev"
-        />
-        <p className="text-xs text-slate-400 mt-1 ml-[33.333%]">
-          ใช้สำหรับ filter commits บน MIT items ให้ตรงกับ developer
-        </p>
-
-        <div className="mt-4 flex items-center gap-3">
-          <button
-            onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending}
-            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            {saveMutation.isPending ? "Saving…" : "Save Changes"}
-          </button>
-          {saveMutation.isSuccess && <span className="text-sm text-green-600">✓ Saved</span>}
-          {saveMutation.isError && (
-            <span className="text-sm text-red-600">{(saveMutation.error as any)?.message}</span>
-          )}
+        {/* Form — 2-column grid like prototype */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <GlassInput label="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name" />
+          </div>
+          <GlassInput label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" />
+          <GlassInput label="Company" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Company name" />
+          <div className="col-span-2">
+            <GlassInput label="GitHub Username" value={githubUsername} onChange={(e) => setGithubUsername(e.target.value)} placeholder="e.g. alice-dev" />
+            <p className="text-xs text-white/30 mt-1.5">ใช้สำหรับ filter commits บน MIT items ให้ตรงกับ developer</p>
+          </div>
         </div>
-      </div>
 
-      <TwoFactorSection />
+        <div className="flex items-center gap-3 mt-5 pt-4 border-t border-white/[.07]">
+          <GlassButton variant="primary" loading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+            Save Changes
+          </GlassButton>
+          {saveMutation.isSuccess && <span className="text-xs text-[#36d399] flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Saved</span>}
+          {saveMutation.isError && <span className="text-xs text-[#f87272]">{(saveMutation.error as any)?.message}</span>}
+        </div>
+      </GlassCard>
 
-      <div className="bg-slate-50 rounded-lg border p-4 text-sm text-slate-500 space-y-1">
-        <p><span className="font-medium text-slate-700">Username:</span> {me?.username ?? "—"}</p>
-        <p><span className="font-medium text-slate-700">Department:</span> {me?.departmentId ?? "—"}</p>
-        <p><span className="font-medium text-slate-700">Roles:</span> {authUser?.roles?.join(", ") ?? "—"}</p>
-        <p className="text-xs text-slate-400">ข้อมูลเหล่านี้แก้ไขได้โดย Admin เท่านั้น</p>
+      {/* Right — account info + 2FA */}
+      <div className="space-y-4">
+        <TwoFactorSection />
+
+        <GlassCard>
+          <h3 className="text-xs font-semibold uppercase tracking-[.12em] text-white/40 mb-3">Account Info</h3>
+          <div className="grid grid-cols-2 gap-2.5">
+            {[
+              ["Username", me?.username ?? "—"],
+              ["Department", me?.departmentId ?? "—"],
+            ].map(([label, val]) => (
+              <div key={label} className="rounded-xl bg-white/[.06] border border-white/[.10] p-3">
+                <span className="block text-[10px] uppercase tracking-[.14em] text-white/40 mb-1.5">{label}</span>
+                <strong className="block text-sm text-white/85 font-mono">{val}</strong>
+              </div>
+            ))}
+            <div className="col-span-2 rounded-xl bg-white/[.06] border border-white/[.10] p-3">
+              <span className="block text-[10px] uppercase tracking-[.14em] text-white/40 mb-1.5">Roles</span>
+              <div className="flex flex-wrap gap-1.5">
+                {authUser?.roles?.map((r) => (
+                  <span key={r} className="px-2 py-0.5 rounded-full bg-white/[.08] border border-white/[.12] text-[11px] text-white/70">{r}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-white/25 mt-3">ข้อมูลเหล่านี้แก้ไขได้โดย Admin เท่านั้น</p>
+        </GlassCard>
       </div>
     </div>
   );
@@ -261,7 +267,8 @@ function ProfileTab() {
 
 // ── GitHub Tab ────────────────────────────────────────────────────────────────
 function GithubTab({ isAdmin }: { isAdmin: boolean }) {
-  const { data: sysData, refetch: refetchSys } = useQuery({
+  const queryClient = useQueryClient();
+  const { data: sysData } = useQuery({
     queryKey: ["system-github"],
     queryFn: () => githubApi.getSystemAccount(),
     enabled: isAdmin,
@@ -270,336 +277,211 @@ function GithubTab({ isAdmin }: { isAdmin: boolean }) {
 
   const [label, setLabel] = useState("default");
   const [token, setToken] = useState("");
-  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (sys) setLabel(sys.label ?? "default");
-  }, [sys]);
+  useEffect(() => { if (sys) setLabel(sys.label ?? "default"); }, [sys]);
 
   const saveSysMutation = useMutation({
     mutationFn: () => githubApi.updateSystemAccount({ label, ...(token ? { accessToken: token } : {}) }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["system-github"] });
-      setToken("");
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["system-github"] }); setToken(""); },
   });
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <h2 className="text-base font-semibold text-slate-900">GitHub Integration</h2>
-        <p className="text-sm text-slate-500 mt-0.5">จัดการการเชื่อมต่อ GitHub</p>
-      </div>
-
-      {/* Personal GitHub */}
-      <div className="bg-white rounded-lg border shadow-sm p-5 space-y-3">
-        <h3 className="font-medium text-slate-800">GitHub ส่วนตัว</h3>
-        <p className="text-sm text-slate-500">
-          ตั้ง GitHub Username ใน <span className="font-medium">Profile tab</span> เพื่อให้ระบบ filter
-          commits ของ MIT item ตาม developer คนนั้น
+    <div className="space-y-5">
+      <GlassCard>
+        <div className="flex items-center gap-2 mb-4">
+          <Github className="h-4 w-4 text-white/60" />
+          <h3 className="text-sm font-semibold text-white/80">GitHub ส่วนตัว</h3>
+        </div>
+        <p className="text-sm text-white/55 mb-4">
+          ตั้ง GitHub Username ใน <span className="font-medium text-white/75">Profile tab</span> เพื่อให้ระบบ filter commits ของ MIT item ตาม developer
         </p>
-        <div className="flex items-center gap-2">
-          <a
-            href={githubApi.connectUrl(0).replace("?projectId=0", "")}
-            className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded hover:bg-slate-700 transition-colors"
-          >
-            Connect My GitHub Account
+        <div className="flex items-center gap-3">
+          <a href={githubApi.connectUrl(0).replace("?projectId=0", "")}>
+            <GlassButton variant="secondary" size="sm">
+              <Github className="h-3.5 w-3.5 mr-1.5" /> Connect My GitHub Account
+            </GlassButton>
           </a>
-          <span className="text-xs text-slate-400">(สำหรับ OAuth flow ในอนาคต)</span>
+          <span className="text-xs text-white/30">(OAuth flow)</span>
         </div>
-      </div>
+      </GlassCard>
 
-      {/* Project connections (list) */}
-      <div className="bg-white rounded-lg border shadow-sm p-5 space-y-3">
-        <h3 className="font-medium text-slate-800">Project Connections</h3>
-        <p className="text-sm text-slate-500">จัดการ GitHub repo ของแต่ละ Project ได้ที่หน้า Project → tab GitHub</p>
-      </div>
+      <GlassCard>
+        <h3 className="text-sm font-semibold text-white/80 mb-2">Project Connections</h3>
+        <p className="text-sm text-white/45">จัดการ GitHub repo ของแต่ละ Project ได้ที่หน้า Project → tab GitHub</p>
+      </GlassCard>
 
-      {/* Central / System GitHub Account — ADMIN only */}
       {isAdmin && (
-        <div className="bg-white rounded-lg border shadow-sm p-5 space-y-4">
-          <div className="flex items-center justify-between">
+        <GlassCard>
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-medium text-slate-800">บัญชีกลาง GitHub (System Account)</h3>
-              <p className="text-sm text-slate-500 mt-0.5">
-                ใช้เป็น fallback token เมื่อ project ยังไม่ได้ connect GitHub เอง
-              </p>
+              <h3 className="text-sm font-semibold text-white/80">System GitHub Account</h3>
+              <p className="text-xs text-white/40 mt-0.5">Fallback token เมื่อ project ยังไม่ได้ connect GitHub</p>
             </div>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sys?.isConnected ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
-              {sys?.isConnected ? "✓ Connected" : "Not connected"}
-            </span>
+            <GlassBadge color={sys?.isConnected ? "green" : "orange"} label={sys?.isConnected ? "Connected" : "Not connected"} />
           </div>
-
           {sys?.githubUsername && (
-            <p className="text-sm text-slate-600">
-              Connected as: <span className="font-mono font-medium">@{sys.githubUsername}</span>
-            </p>
+            <p className="text-sm text-white/60 mb-3">Connected as: <span className="font-mono text-white/80">@{sys.githubUsername}</span></p>
           )}
-
           <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-4 items-center">
-              <label className="text-sm text-slate-600">Label</label>
-              <input
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                className="col-span-2 border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-4 items-center">
-              <label className="text-sm text-slate-600">Personal Access Token</label>
-              <input
-                type="password"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder={sys?.isConnected ? "••••••••• (leave blank to keep)" : "ghp_xxxxxxxxxxxx"}
-                className="col-span-2 border rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            <GlassInput label="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
+            <GlassInput label="Personal Access Token" type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={sys?.isConnected ? "••••••••• (leave blank to keep)" : "ghp_xxxxxxxxxxxx"} />
           </div>
-
-          <div className="flex items-center gap-3 pt-2 border-t">
-            <button
-              onClick={() => saveSysMutation.mutate()}
-              disabled={saveSysMutation.isPending}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50"
-            >
-              {saveSysMutation.isPending ? "Saving…" : "Save"}
-            </button>
-            <a
-              href={githubApi.connectSystemUrl()}
-              className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded hover:bg-slate-700"
-            >
-              Connect via OAuth
+          <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/[.07]">
+            <GlassButton variant="primary" size="sm" loading={saveSysMutation.isPending} onClick={() => saveSysMutation.mutate()}>Save</GlassButton>
+            <a href={githubApi.connectSystemUrl()}>
+              <GlassButton variant="secondary" size="sm"><Github className="h-3.5 w-3.5 mr-1.5" /> Connect via OAuth</GlassButton>
             </a>
-            {saveSysMutation.isSuccess && <span className="text-sm text-green-600">✓ Saved</span>}
-            {saveSysMutation.isError && (
-              <span className="text-sm text-red-600">{(saveSysMutation.error as any)?.message}</span>
-            )}
+            {saveSysMutation.isSuccess && <span className="text-xs text-[#36d399]"><Check className="h-3 w-3 inline mr-1" />Saved</span>}
           </div>
-        </div>
+        </GlassCard>
       )}
     </div>
   );
 }
 
-// ── Google Bot Accounts Tab ───────────────────────────────────────────────────
+// ── Bot Accounts Tab ──────────────────────────────────────────────────────────
 function BotAccountsTab() {
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
-  const [email, setEmail] = useState("");
+  const [botEmail, setBotEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
 
-  const { data: botsData, isLoading } = useQuery({
-    queryKey: ["bot-accounts"],
-    queryFn: () => settingsApi.listBotAccounts(),
-  });
+  const { data: botsData, isLoading } = useQuery({ queryKey: ["bot-accounts"], queryFn: () => settingsApi.listBotAccounts() });
   const bots: any[] = botsData?.data ?? [];
 
   const saveMutation = useMutation({
     mutationFn: () =>
       editId
-        ? settingsApi.updateBotAccount(editId, { email, displayName })
-        : settingsApi.createBotAccount({ email, displayName }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bot-accounts"] });
-      setShowForm(false);
-      setEditId(null);
-      setEmail("");
-      setDisplayName("");
-    },
+        ? settingsApi.updateBotAccount(editId, { email: botEmail, displayName })
+        : settingsApi.createBotAccount({ email: botEmail, displayName }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bot-accounts"] }); setShowModal(false); setEditId(null); setBotEmail(""); setDisplayName(""); },
   });
 
   const setDefaultMutation = useMutation({
     mutationFn: (id: number) => settingsApi.setDefaultBotAccount(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bot-accounts"] }),
   });
-
   const disableMutation = useMutation({
     mutationFn: (id: number) => settingsApi.disableBotAccount(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bot-accounts"] }),
   });
 
-  const openEdit = (bot: any) => {
-    setEditId(bot.id);
-    setEmail(bot.email ?? "");
-    setDisplayName(bot.displayName ?? "");
-    setShowForm(true);
-  };
+  const openEdit = (bot: any) => { setEditId(bot.id); setBotEmail(bot.email ?? ""); setDisplayName(bot.displayName ?? ""); setShowModal(true); };
+  const openNew  = () => { setEditId(null); setBotEmail(""); setDisplayName(""); setShowModal(true); };
 
-  const statusColor: Record<string, string> = {
-    AVAILABLE: "bg-green-100 text-green-700",
-    IN_MEETING: "bg-blue-100 text-blue-700",
-    OFFLINE: "bg-slate-100 text-slate-600",
-    DISABLED: "bg-red-100 text-red-600",
+  const statusColor = (s: string): "green"|"blue"|"yellow"|"red"|"slate" => {
+    if (s === "AVAILABLE") return "green";
+    if (s === "IN_MEETING") return "blue";
+    if (s === "DISABLED") return "red";
+    return "slate";
   };
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">Google Bot Accounts</h2>
-          <p className="text-sm text-slate-500 mt-0.5">บัญชี Google สำหรับ Meeting Bot เข้าร่วม Google Meet</p>
+          <h2 className="text-sm font-semibold text-white/80">Google Bot Accounts</h2>
+          <p className="text-xs text-white/40 mt-0.5">บัญชี Google สำหรับ Meeting Bot เข้าร่วม Google Meet</p>
         </div>
-        <button
-          onClick={() => { setShowForm(true); setEditId(null); setEmail(""); setDisplayName(""); }}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700"
-        >
-          + Add Account
-        </button>
+        <GlassButton variant="primary" size="sm" onClick={openNew}>
+          <Bot className="h-3.5 w-3.5 mr-1.5" /> Add Account
+        </GlassButton>
       </div>
 
-      {/* Add / Edit form */}
-      {showForm && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-          <h3 className="font-medium text-slate-800 text-sm">{editId ? "Edit Bot Account" : "New Bot Account"}</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-slate-500">Email</label>
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="bot@company.com"
-                className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-slate-500">Display Name</label>
-              <input
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Meeting Bot 1"
-                className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => saveMutation.mutate()}
-              disabled={!email || saveMutation.isPending}
-              className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50"
-            >
-              {saveMutation.isPending ? "Saving…" : "Save"}
-            </button>
-            <button
-              onClick={() => setShowForm(false)}
-              className="px-3 py-1.5 text-sm text-slate-600 border rounded hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            {saveMutation.isError && (
-              <span className="text-xs text-red-600 self-center">{(saveMutation.error as any)?.message}</span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Accounts table */}
-      <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
-        {isLoading && <p className="p-5 text-slate-400 text-sm">Loading…</p>}
+      <GlassCard>
+        {isLoading && <div className="py-6 text-center text-white/40 text-sm animate-pulse">Loading…</div>}
         {!isLoading && bots.length === 0 && (
-          <p className="p-5 text-slate-400 text-sm">No bot accounts yet. Add one to get started.</p>
+          <EmptyState icon={<Bot className="h-6 w-6" />} title="No bot accounts" description="Add a Google account to enable meeting bot" />
         )}
-        {bots.map((bot) => (
-          <div key={bot.id} className="flex items-center gap-4 px-5 py-4 border-b last:border-0 hover:bg-slate-50">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-800 truncate">{bot.email}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{bot.displayName ?? "—"}</p>
+        <div className="divide-y divide-white/[.06]">
+          {bots.map((bot) => (
+            <div key={bot.id} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
+              <GlassAvatar name={bot.email} size="sm" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white/80 truncate">{bot.email}</p>
+                <p className="text-xs text-white/35">{bot.displayName ?? "—"}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <GlassBadge color={statusColor(bot.currentStatus)} label={bot.currentStatus} />
+                {bot.isDefault && <GlassBadge color="yellow" label="Default" />}
+                <GlassButton variant="ghost" size="sm" onClick={() => openEdit(bot)}><Pencil className="h-3.5 w-3.5" /></GlassButton>
+                {!bot.isDefault && (
+                  <GlassButton variant="ghost" size="sm" onClick={() => setDefaultMutation.mutate(bot.id)}>Set Default</GlassButton>
+                )}
+                {bot.currentStatus !== "DISABLED" && (
+                  <GlassButton variant="danger" size="sm" onClick={() => disableMutation.mutate(bot.id)}>Disable</GlassButton>
+                )}
+              </div>
             </div>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[bot.currentStatus] ?? "bg-slate-100 text-slate-600"}`}>
-              {bot.currentStatus}
-            </span>
-            {bot.isDefault && (
-              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-                Default
-              </span>
-            )}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => openEdit(bot)}
-                className="text-xs text-blue-600 hover:underline"
-              >
-                Edit
-              </button>
-              {!bot.isDefault && (
-                <button
-                  onClick={() => setDefaultMutation.mutate(bot.id)}
-                  className="text-xs text-slate-500 hover:underline"
-                >
-                  Set Default
-                </button>
-              )}
-              {bot.currentStatus !== "DISABLED" && (
-                <button
-                  onClick={() => disableMutation.mutate(bot.id)}
-                  className="text-xs text-red-500 hover:underline"
-                >
-                  Disable
-                </button>
-              )}
+          ))}
+        </div>
+      </GlassCard>
+
+      <GlassModal open={showModal} onClose={() => setShowModal(false)} title={editId ? "Edit Bot Account" : "New Bot Account"} size="sm">
+        <div className="space-y-4">
+          <GlassInput label="Email" type="email" value={botEmail} onChange={(e) => setBotEmail(e.target.value)} placeholder="bot@company.com" autoFocus />
+          <GlassInput label="Display Name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Meeting Bot 1" />
+          {saveMutation.isError && (
+            <div className="flex items-center gap-2 rounded-sm bg-red-400/10 border border-red-400/20 p-2.5">
+              <AlertCircle className="h-4 w-4 text-[#f87272] shrink-0" />
+              <p className="text-xs text-[#f87272]">{(saveMutation.error as any)?.message}</p>
             </div>
+          )}
+          <div className="flex gap-3 justify-end">
+            <GlassButton variant="ghost" onClick={() => setShowModal(false)}>Cancel</GlassButton>
+            <GlassButton variant="primary" loading={saveMutation.isPending} disabled={!botEmail} onClick={() => saveMutation.mutate()}>
+              {editId ? "Save Changes" : "Add Account"}
+            </GlassButton>
           </div>
-        ))}
-      </div>
+        </div>
+      </GlassModal>
     </div>
   );
 }
 
 // ── Main Settings Page ────────────────────────────────────────────────────────
-export default function SettingsPage() {
-  const { user, hasAnyRole } = useAuth();
+function SettingsInner() {
+  const { hasAnyRole } = useAuth();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") ?? "profile";
-
   const [activeTab, setActiveTab] = useState(
     ["profile", "github", "bots"].includes(initialTab) ? initialTab : "profile",
   );
 
-  const isAdmin = hasAnyRole(["ADMIN"]);
+  const isAdmin       = hasAnyRole(["ADMIN"]);
   const canManageBots = hasAnyRole(["ADMIN", "IT_MANAGER"]);
 
   const tabs = [
-    { key: "profile", label: "Profile" },
-    { key: "github", label: "GitHub" },
-    ...(canManageBots ? [{ key: "bots", label: "Google Bot Accounts" }] : []),
+    { id: "profile", label: "Profile" },
+    { id: "github",  label: "GitHub" },
+    ...(canManageBots ? [{ id: "bots", label: "Bot Accounts" }] : []),
   ];
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Account, integrations & system configuration</p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader title="Settings" subtitle="Account, integrations & system configuration" />
 
-      {/* Tab navigation */}
-      <div className="border-b border-slate-200">
-        <nav className="flex gap-6">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.key
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* Connected notification */}
       {searchParams.get("connected") && (
-        <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700">
-          ✓ GitHub account connected successfully
-        </div>
+        <GlassCard className="border border-[#36d399]/30 bg-[#36d399]/[.05] flex items-center gap-3">
+          <Check className="h-4 w-4 text-[#36d399] shrink-0" />
+          <span className="text-sm text-[#36d399]">GitHub account connected successfully</span>
+        </GlassCard>
       )}
 
+      <GlassTabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
+
       {activeTab === "profile" && <ProfileTab />}
-      {activeTab === "github" && <GithubTab isAdmin={isAdmin} />}
+      {activeTab === "github"  && <GithubTab isAdmin={isAdmin} />}
       {activeTab === "bots" && canManageBots && <BotAccountsTab />}
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[400px] text-white/40 animate-pulse">Loading…</div>}>
+      <SettingsInner />
+    </Suspense>
   );
 }

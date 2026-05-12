@@ -11,90 +11,61 @@ import {
   canUATApprove, canClose,
   type PermRequest,
 } from "../../lib/request-permissions";
+import { GlassCard } from "../ui/GlassCard";
+import { GlassButton } from "../ui/GlassButton";
+import { GlassModal } from "../ui/GlassModal";
+import { GlassInput } from "../ui/GlassInput";
+import { AlertCircle, Zap } from "lucide-react";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 type ModalType = "reject" | "qa-fail" | "assign-ba" | "assign-dev" | "assign-qa" | null;
 
 interface Props {
   request: PermRequest & { id: number };
 }
 
-// ── Button components ─────────────────────────────────────────────────────────
-function Btn({
-  label, onClick, color = "slate", disabled = false,
-}: {
+interface ActionDef {
+  key: string;
   label: string;
-  onClick: () => void;
-  color?: "blue" | "green" | "red" | "amber" | "slate";
-  disabled?: boolean;
-}) {
-  const colors = {
-    blue:  "bg-blue-600 hover:bg-blue-700 text-white",
-    green: "bg-green-600 hover:bg-green-700 text-white",
-    red:   "bg-red-600 hover:bg-red-700 text-white",
-    amber: "bg-amber-500 hover:bg-amber-600 text-white",
-    slate: "bg-slate-600 hover:bg-slate-700 text-white",
-  };
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`px-3 py-1.5 rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${colors[color]}`}
-    >
-      {label}
-    </button>
-  );
+  variant: "primary" | "success" | "danger" | "secondary" | "ghost";
+  modal?: ModalType;
+  fn?: () => Promise<any>;
 }
 
-// ── Modal for actions that need input ─────────────────────────────────────────
 function InputModal({
-  title, label, type = "text", placeholder, confirmLabel = "Confirm", confirmColor = "blue",
+  title, label, type = "text", placeholder, confirmLabel = "Confirm", danger = false,
   onConfirm, onClose,
 }: {
-  title: string;
-  label: string;
-  type?: string;
-  placeholder?: string;
-  confirmLabel?: string;
-  confirmColor?: "blue" | "green" | "red" | "amber" | "slate";
-  onConfirm: (value: string) => void;
-  onClose: () => void;
+  title: string; label: string; type?: string; placeholder?: string;
+  confirmLabel?: string; danger?: boolean;
+  onConfirm: (value: string) => void; onClose: () => void;
 }) {
   const [value, setValue] = useState("");
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm space-y-4">
-        <h3 className="font-semibold text-slate-800 text-base">{title}</h3>
-        <div className="space-y-1">
-          <label className="text-sm text-slate-600">{label}</label>
-          <input
-            type={type}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder={placeholder}
-            className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            autoFocus
-          />
-        </div>
+    <GlassModal open onClose={onClose} title={title} size="sm">
+      <div className="space-y-4">
+        <GlassInput
+          label={label}
+          type={type}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={placeholder}
+          autoFocus
+        />
         <div className="flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-800 border rounded transition-colors"
-          >
-            Cancel
-          </button>
-          <Btn
-            label={confirmLabel}
-            color={confirmColor}
+          <GlassButton variant="ghost" onClick={onClose}>Cancel</GlassButton>
+          <GlassButton
+            variant={danger ? "danger" : "primary"}
             onClick={() => { if (value.trim()) onConfirm(value.trim()); }}
-          />
+            disabled={!value.trim()}
+          >
+            {confirmLabel}
+          </GlassButton>
         </div>
       </div>
-    </div>
+    </GlassModal>
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
 export function RequestActions({ request }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -121,136 +92,88 @@ export function RequestActions({ request }: Props) {
     }
   };
 
-  // Build visible actions list
-  const actions: React.ReactNode[] = [];
+  const actions: ActionDef[] = [];
 
   if (canSubmit(u, request))
-    actions.push(<Btn key="submit" label="Submit" color="blue" disabled={loading}
-      onClick={() => run(() => requestsApi.submit(id))} />);
-
+    actions.push({ key: "submit", label: "Submit", variant: "primary", fn: () => requestsApi.submit(id) });
   if (canApprove(u, request))
-    actions.push(<Btn key="approve" label="Approve" color="green" disabled={loading}
-      onClick={() => run(() => requestsApi.approve(id))} />);
-
+    actions.push({ key: "approve", label: "Approve", variant: "success", fn: () => requestsApi.approve(id) });
   if (canReject(u, request))
-    actions.push(<Btn key="reject" label="Reject" color="red" disabled={loading}
-      onClick={() => setModal("reject")} />);
-
+    actions.push({ key: "reject", label: "Reject", variant: "danger", modal: "reject" });
   if (canAssignBA(u, request))
-    actions.push(<Btn key="assign-ba" label="Assign BA" color="amber" disabled={loading}
-      onClick={() => setModal("assign-ba")} />);
-
+    actions.push({ key: "assign-ba", label: "Assign BA", variant: "secondary", modal: "assign-ba" });
   if (canAssignDev(u, request))
-    actions.push(<Btn key="assign-dev" label="Assign Dev" color="amber" disabled={loading}
-      onClick={() => setModal("assign-dev")} />);
-
+    actions.push({ key: "assign-dev", label: "Assign Dev", variant: "secondary", modal: "assign-dev" });
   if (canAssignQA(u, request))
-    actions.push(<Btn key="assign-qa" label="Assign QA" color="amber" disabled={loading}
-      onClick={() => setModal("assign-qa")} />);
-
+    actions.push({ key: "assign-qa", label: "Assign QA", variant: "secondary", modal: "assign-qa" });
   if (canStartDev(u, request))
-    actions.push(<Btn key="start-dev" label="Start Development" color="slate" disabled={loading}
-      onClick={() => run(() => requestsApi.startDevelopment(id))} />);
-
+    actions.push({ key: "start-dev", label: "Start Development", variant: "primary", fn: () => requestsApi.startDevelopment(id) });
   if (canReadyForQA(u, request))
-    actions.push(<Btn key="ready-qa" label="Ready for QA" color="slate" disabled={loading}
-      onClick={() => run(() => requestsApi.readyForQA(id))} />);
-
+    actions.push({ key: "ready-qa", label: "Ready for QA", variant: "primary", fn: () => requestsApi.readyForQA(id) });
   if (canQAPass(u, request))
-    actions.push(<Btn key="qa-pass" label="QA Pass" color="green" disabled={loading}
-      onClick={() => run(() => requestsApi.qaPass(id))} />);
-
+    actions.push({ key: "qa-pass", label: "QA Pass", variant: "success", fn: () => requestsApi.qaPass(id) });
   if (canQAFail(u, request))
-    actions.push(<Btn key="qa-fail" label="QA Fail" color="red" disabled={loading}
-      onClick={() => setModal("qa-fail")} />);
-
+    actions.push({ key: "qa-fail", label: "QA Fail", variant: "danger", modal: "qa-fail" });
   if (canUATApprove(u, request))
-    actions.push(<Btn key="uat" label="UAT Approve" color="green" disabled={loading}
-      onClick={() => run(() => requestsApi.uatApprove(id))} />);
-
+    actions.push({ key: "uat", label: "UAT Approve", variant: "success", fn: () => requestsApi.uatApprove(id) });
   if (canClose(u, request))
-    actions.push(<Btn key="close" label="Close" color="red" disabled={loading}
-      onClick={() => run(() => requestsApi.close(id))} />);
+    actions.push({ key: "close", label: "Close Request", variant: "danger", fn: () => requestsApi.close(id) });
 
   if (actions.length === 0) return null;
 
   return (
     <>
-      <div className="bg-white rounded-lg border shadow-sm p-4">
-        <h2 className="text-sm font-semibold text-slate-700 mb-3">Workflow Actions</h2>
-        <div className="flex flex-wrap gap-2">
-          {actions}
+      <GlassCard>
+        <div className="flex items-center gap-2 mb-3">
+          <Zap className="h-4 w-4 text-[#4f9cf9]" />
+          <h2 className="text-sm font-semibold text-white/70">Workflow Actions</h2>
         </div>
-        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
-        {loading && <p className="mt-2 text-xs text-slate-400">Processing…</p>}
-      </div>
+        <div className="flex flex-wrap gap-2">
+          {actions.map((a) => (
+            <GlassButton
+              key={a.key}
+              variant={a.variant}
+              size="sm"
+              loading={loading && !a.modal}
+              disabled={loading}
+              onClick={() => a.modal ? setModal(a.modal) : a.fn && run(a.fn)}
+            >
+              {a.label}
+            </GlassButton>
+          ))}
+        </div>
+        {error && (
+          <div className="flex items-center gap-2 mt-3 rounded-sm bg-red-400/10 border border-red-400/20 p-2.5">
+            <AlertCircle className="h-4 w-4 text-[#f87272] shrink-0" />
+            <p className="text-xs text-[#f87272]">{error}</p>
+          </div>
+        )}
+      </GlassCard>
 
-      {/* Reject modal */}
       {modal === "reject" && (
-        <InputModal
-          title="Reject Request"
-          label="Reason (required)"
-          placeholder="ระบุเหตุผลที่ reject…"
-          confirmLabel="Reject"
-          confirmColor="red"
-          onClose={() => setModal(null)}
-          onConfirm={(reason) => run(() => requestsApi.reject(id, reason))}
-        />
+        <InputModal title="Reject Request" label="Reason (required)" placeholder="ระบุเหตุผลที่ reject…"
+          confirmLabel="Reject" danger onClose={() => setModal(null)}
+          onConfirm={(reason) => run(() => requestsApi.reject(id, reason))} />
       )}
-
-      {/* QA Fail modal */}
       {modal === "qa-fail" && (
-        <InputModal
-          title="QA Fail"
-          label="Reason (required)"
-          placeholder="ระบุสิ่งที่ fail…"
-          confirmLabel="Confirm Fail"
-          confirmColor="red"
-          onClose={() => setModal(null)}
-          onConfirm={(reason) => run(() => requestsApi.qaFail(id, reason))}
-        />
+        <InputModal title="QA Fail" label="Reason (required)" placeholder="ระบุสิ่งที่ fail…"
+          confirmLabel="Confirm Fail" danger onClose={() => setModal(null)}
+          onConfirm={(reason) => run(() => requestsApi.qaFail(id, reason))} />
       )}
-
-      {/* Assign BA modal */}
       {modal === "assign-ba" && (
-        <InputModal
-          title="Assign BA"
-          label="BA User ID"
-          type="number"
-          placeholder="e.g. 5"
-          confirmLabel="Assign"
-          confirmColor="amber"
-          onClose={() => setModal(null)}
-          onConfirm={(val) => run(() => requestsApi.assignBA(id, Number(val)))}
-        />
+        <InputModal title="Assign BA" label="BA User ID" type="number" placeholder="e.g. 5"
+          confirmLabel="Assign" onClose={() => setModal(null)}
+          onConfirm={(val) => run(() => requestsApi.assignBA(id, Number(val)))} />
       )}
-
-      {/* Assign Dev modal */}
       {modal === "assign-dev" && (
-        <InputModal
-          title="Assign Developer"
-          label="Developer User ID"
-          type="number"
-          placeholder="e.g. 12"
-          confirmLabel="Assign"
-          confirmColor="amber"
-          onClose={() => setModal(null)}
-          onConfirm={(val) => run(() => requestsApi.assignDev(id, Number(val)))}
-        />
+        <InputModal title="Assign Developer" label="Developer User ID" type="number" placeholder="e.g. 12"
+          confirmLabel="Assign" onClose={() => setModal(null)}
+          onConfirm={(val) => run(() => requestsApi.assignDev(id, Number(val)))} />
       )}
-
-      {/* Assign QA modal */}
       {modal === "assign-qa" && (
-        <InputModal
-          title="Assign QA"
-          label="QA User ID"
-          type="number"
-          placeholder="e.g. 8"
-          confirmLabel="Assign"
-          confirmColor="amber"
-          onClose={() => setModal(null)}
-          onConfirm={(val) => run(() => requestsApi.assignQA(id, Number(val)))}
-        />
+        <InputModal title="Assign QA" label="QA User ID" type="number" placeholder="e.g. 8"
+          confirmLabel="Assign" onClose={() => setModal(null)}
+          onConfirm={(val) => run(() => requestsApi.assignQA(id, Number(val)))} />
       )}
     </>
   );
