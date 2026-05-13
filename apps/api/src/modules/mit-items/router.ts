@@ -4,6 +4,7 @@ import { mitItems, mitStepAssignments, mitStatusHistory, mitHandoffs } from "@rm
 import { ok, paginated, err } from "../../lib/response";
 import { eq, and, ilike, count, desc } from "drizzle-orm";
 import { assignMitItem, acceptMitItem, submitMitItem, returnMitItem } from "./service";
+import { getAssignableUsersForStep } from "./assignment-eligibility";
 import { authenticate, authorize } from "../../lib/auth";
 
 export const mitItemsRouter = new Elysia({ prefix: "/mit-items" })
@@ -51,6 +52,17 @@ export const mitItemsRouter = new Elysia({ prefix: "/mit-items" })
   })
   // Workflow actions — assign/submit require IT_MANAGER or ADMIN
   .use(authorize(["IT_MANAGER", "ADMIN"]))
+  .get("/:id/assignable-users", async ({ params, query }: any) => {
+    try {
+      const stepId = Number(query.stepId);
+      if (!Number.isFinite(stepId) || stepId <= 0) return err("stepId is required");
+
+      const { candidates } = await getAssignableUsersForStep(Number(params.id), stepId);
+      return ok({ data: candidates });
+    } catch (e: any) {
+      return err(e.message);
+    }
+  })
   .post("/:id/assign", async ({ params, body }: any) => {
     try {
       const result = await assignMitItem(

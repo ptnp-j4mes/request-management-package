@@ -1,6 +1,6 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mitApi, githubApi } from "../../../lib/api";
+import { mitApi, githubApi, workflowApi } from "../../../lib/api";
 import Link from "next/link";
 import { useState } from "react";
 import { WorkflowActionSheet } from "../../../components/mit/WorkflowActionSheet";
@@ -9,7 +9,7 @@ import { PageHeader } from "../../../components/ui/PageHeader";
 import { GlassCard } from "../../../components/ui/GlassCard";
 import { GlassBadge } from "../../../components/ui/GlassBadge";
 import { GlassButton } from "../../../components/ui/GlassButton";
-import { EmptyState } from "../../../components/ui/EmptyState";
+import { useAuth } from "../../../contexts/AuthContext";
 
 const STEP_COLORS: Record<string, "blue"|"yellow"|"orange"|"green"|"slate"> = {
   DEV: "blue", QA: "yellow", UAT: "orange", MA: "green",
@@ -22,12 +22,18 @@ const STATUS_COLOR: Record<string, "blue"|"green"|"orange"|"slate"> = {
 export default function MitDetailPage({ params }: { params: { id: string } }) {
   const [showAction, setShowAction] = useState(false);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data, isLoading } = useQuery({
     queryKey: ["mit-item", params.id],
     queryFn: () => mitApi.get(Number(params.id)),
   });
+  const { data: workflowStepsData } = useQuery({
+    queryKey: ["workflow-steps"],
+    queryFn: workflowApi.steps,
+  });
   const mit = data?.data;
+  const workflowSteps = workflowStepsData ?? [];
 
   const { data: commitsData, isLoading: commitsLoading, refetch: refetchCommits } = useQuery({
     queryKey: ["mit-commits", params.id],
@@ -280,7 +286,7 @@ export default function MitDetailPage({ params }: { params: { id: string } }) {
       </div>
 
       {showAction && (
-        <WorkflowActionSheet mitId={mit.id} currentUserId={1} onClose={() => setShowAction(false)} />
+        <WorkflowActionSheet mitId={mit.id} currentUserId={user?.id} steps={workflowSteps} onClose={() => setShowAction(false)} />
       )}
     </div>
   );

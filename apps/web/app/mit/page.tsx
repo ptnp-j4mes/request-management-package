@@ -1,7 +1,7 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { mitApi, projectsApi } from "../../lib/api";
+import { mitApi, projectsApi, workflowApi } from "../../lib/api";
 import Link from "next/link";
 import { WorkflowActionSheet } from "../../components/mit/WorkflowActionSheet";
 import { Plus, LayoutGrid, List, ClipboardList, Zap } from "lucide-react";
@@ -13,8 +13,8 @@ import { GlassButton } from "../../components/ui/GlassButton";
 import { GlassSelect } from "../../components/ui/GlassInput";
 import { GlassKanbanColumn, GlassKanbanCard } from "../../components/ui/GlassKanbanColumn";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { useAuth } from "../../contexts/AuthContext";
 
-const STEPS = ["DEV", "QA", "UAT", "MA"];
 const STEP_COLORS: Record<string, "blue"|"yellow"|"orange"|"green"|"slate"> = {
   DEV: "blue", QA: "yellow", UAT: "orange", MA: "green",
 };
@@ -28,20 +28,27 @@ export default function MitBoardPage() {
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [selectedMitId, setSelectedMitId] = useState<number | null>(null);
   const [projectFilter, setProjectFilter] = useState("");
+  const { user } = useAuth();
 
   const { data, isLoading } = useQuery({
     queryKey: ["mit-items", { projectId: projectFilter }],
     queryFn: () => mitApi.list({ limit: "200", ...(projectFilter ? { projectId: projectFilter } : {}) }),
   });
   const { data: projectsData } = useQuery({ queryKey: ["projects"], queryFn: projectsApi.list });
+  const { data: workflowStepsData, isLoading: workflowStepsLoading } = useQuery({
+    queryKey: ["workflow-steps"],
+    queryFn: workflowApi.steps,
+  });
 
   const items: any[] = data?.data?.items ?? [];
   const projects = projectsData?.data ?? [];
+  const workflowSteps = workflowStepsData ?? [];
+  const stepCodes = workflowSteps.map((step) => step.stepCode);
 
-  const byStep = STEPS.reduce((acc, s) => {
+  const byStep = stepCodes.reduce<Record<string, any[]>>((acc, s) => {
     acc[s] = items.filter((m) => m.currentStepCode === s);
     return acc;
-  }, {} as Record<string, any[]>);
+  }, {});
   const noStep = items.filter((m) => !m.currentStepCode);
 
   const listColumns = [
@@ -100,14 +107,14 @@ export default function MitBoardPage() {
         }
       />
 
-      {isLoading && (
+      {(isLoading || workflowStepsLoading) && (
         <div className="py-12 text-center text-white/40 text-sm animate-pulse">Loading…</div>
       )}
 
       {/* Kanban View */}
-      {view === "kanban" && !isLoading && (
+      {view === "kanban" && !isLoading && !workflowStepsLoading && (
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {[...STEPS, "NEW"].map((step) => {
+          {[...stepCodes, "NEW"].map((step) => {
             const colItems = step === "NEW" ? noStep : byStep[step] ?? [];
             return (
               <GlassKanbanColumn key={step} title={step} count={colItems.length} color={STEP_COLORS[step]}>
@@ -131,7 +138,7 @@ export default function MitBoardPage() {
       )}
 
       {/* List View */}
-      {view === "list" && !isLoading && (
+      {view === "list" && !isLoading && !workflowStepsLoading && (
         <GlassCard className="p-0">
           <GlassTable
             columns={listColumns}
@@ -148,7 +155,7 @@ export default function MitBoardPage() {
       )}
 
       {selectedMitId && (
-        <WorkflowActionSheet mitId={selectedMitId} currentUserId={1} onClose={() => setSelectedMitId(null)} />
+        <WorkflowActionSheet mitId={selectedMitId} currentUserId={user?.id} steps={workflowSteps} onClose={() => setSelectedMitId(null)} />
       )}
     </div>
   );

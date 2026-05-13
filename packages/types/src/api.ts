@@ -50,3 +50,27 @@ export type JwtPayload = {
   iat?: number;
   exp?: number;
 };
+
+export type WorkflowStepDto = {
+  id: number;
+  workflowId: number;
+  stepCode: string;
+  stepName: string;
+  stepOrder: number;
+  isTerminal: boolean;
+};
+
+export type AssignableMitUserDto = {
+  id: number;
+  fullName: string;
+  email: string | null;
+  roleName: string | null;
+  roles: string[];
+  projectMemberRole: string | null;
+  eligibleForStep: true;
+  eligibilityReason: "PROJECT_MEMBER" | "ROLE" | "FULLSTACK";
+};
+
+export type AssignableMitUsersResponse = ApiResponse<{
+  data: AssignableMitUserDto[];
+}>;

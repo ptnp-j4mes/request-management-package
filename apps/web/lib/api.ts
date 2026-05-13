@@ -4,6 +4,7 @@ import {
   getStoredRefreshToken,
   syncAccessToken,
 } from "./auth-storage";
+import type { AssignableMitUsersResponse, WorkflowStepDto } from "@rm/types";
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:9898";
 
 async function baseRequest<T>(path: string, init?: RequestInit): Promise<Response> {
@@ -140,10 +141,16 @@ export const mitApi = {
   },
   get: (id: number) => api.get<any>(`/mit-items/${id}`),
   create: (body: any) => api.post<any>("/mit-items", body),
+  assignableUsers: (mitId: number, stepId: number) =>
+    api.get<AssignableMitUsersResponse>(`/mit-items/${mitId}/assignable-users?stepId=${stepId}`),
   assign: (id: number, body: any) => api.post<any>(`/mit-items/${id}/assign`, body),
   accept: (id: number, body: any) => api.post<any>(`/mit-items/${id}/accept`, body),
   submit: (id: number, body: any) => api.post<any>(`/mit-items/${id}/submit`, body),
   returnItem: (id: number, body: any) => api.post<any>(`/mit-items/${id}/return`, body),
+};
+
+export const workflowApi = {
+  steps: () => api.get<WorkflowStepDto[]>("/workflow-steps"),
 };
 
 export const workloadApi = {

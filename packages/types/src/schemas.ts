@@ -118,7 +118,7 @@ export const CreateMitItemSchema = z.object({
 export const AssignMitSchema = z.object({
   userId: z.number().int().positive(),
   stepId: z.number().int().positive(),
-  role: z.string().min(2).max(50),
+  role: z.string().min(2).max(50).optional(),
 });
 
 export const SubmitMitSchema = z.object({

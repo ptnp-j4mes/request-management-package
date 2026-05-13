@@ -1,21 +1,25 @@
 import { db } from "../../lib/db";
 import {
   mitItems, mitStepAssignments, mitHandoffs,
-  mitAcceptanceLogs, mitStatusHistory, workflowSteps,
+  mitAcceptanceLogs, mitStatusHistory,
 } from "@rm/db";
 import { eq, and } from "drizzle-orm";
+import {
+  assertAssignableUserForStep,
+} from "./assignment-eligibility";
 
-export async function assignMitItem(mitId: number, stepId: number, userId: number, role: string, assignedBy: number) {
+export async function assignMitItem(mitId: number, stepId: number, userId: number, _role: string | undefined, assignedBy: number) {
   const now = new Date();
 
-  const [step] = await db.select().from(workflowSteps).where(eq(workflowSteps.id, stepId));
-  if (!step) throw new Error("Workflow step not found");
+  const { candidate, step, assignedRole } = await assertAssignableUserForStep(mitId, stepId, userId);
+  const [mit] = await db.select().from(mitItems).where(eq(mitItems.id, mitId));
+  if (!mit) throw new Error("MIT item not found");
 
   const [assignment] = await db.insert(mitStepAssignments).values({
     mitItemId: mitId,
     stepId,
     assignedUserId: userId,
-    assignedRole: role,
+    assignedRole,
     assignmentStatus: "assigned",
   }).returning();
 
@@ -29,13 +33,13 @@ export async function assignMitItem(mitId: number, stepId: number, userId: numbe
 
   await db.insert(mitStatusHistory).values({
     mitItemId: mitId,
-    oldStatus: "new",
+    oldStatus: mit.currentStatus,
     newStatus: "assigned",
     changedBy: assignedBy,
     remark: `Assigned to step ${step.stepCode}`,
   });
 
-  return assignment;
+  return { ...assignment, eligibilityReason: candidate.eligibilityReason };
 }
 
 export async function acceptMitItem(mitId: number, userId: number, action: "accept" | "reject" | "return", note?: string) {
@@ -69,8 +73,7 @@ export async function submitMitItem(mitId: number, fromUserId: number, toUserId:
   const [mit] = await db.select().from(mitItems).where(eq(mitItems.id, mitId));
   if (!mit) throw new Error("MIT item not found");
 
-  const [toStep] = await db.select().from(workflowSteps).where(eq(workflowSteps.id, toStepId));
-  if (!toStep) throw new Error("Target workflow step not found");
+  const { step: toStep, assignedRole } = await assertAssignableUserForStep(mitId, toStepId, toUserId);
 
   const oldStatus = mit.currentStatus;
 
@@ -120,7 +123,7 @@ export async function submitMitItem(mitId: number, fromUserId: number, toUserId:
     mitItemId: mitId,
     stepId: toStepId,
     assignedUserId: toUserId,
-    assignedRole: toStep.stepCode.toLowerCase(),
+    assignedRole,
     assignmentStatus: "assigned",
   });
 
@@ -133,8 +136,7 @@ export async function returnMitItem(mitId: number, fromUserId: number, toStepId:
   const [mit] = await db.select().from(mitItems).where(eq(mitItems.id, mitId));
   if (!mit) throw new Error("MIT item not found");
 
-  const [toStep] = await db.select().from(workflowSteps).where(eq(workflowSteps.id, toStepId));
-  if (!toStep) throw new Error("Target workflow step not found");
+  const { step: toStep, assignedRole } = await assertAssignableUserForStep(mitId, toStepId, toUserId);
 
   const [handoff] = await db.insert(mitHandoffs).values({
     mitItemId: mitId,
@@ -166,7 +168,7 @@ export async function returnMitItem(mitId: number, fromUserId: number, toStepId:
     mitItemId: mitId,
     stepId: toStepId,
     assignedUserId: toUserId,
-    assignedRole: toStep.stepCode.toLowerCase(),
+    assignedRole,
     assignmentStatus: "assigned",
   });
 

@@ -10,6 +10,7 @@ import { maRouter } from "./modules/maintenance-agreements/router";
 import { uatRouter } from "./modules/uat/router";
 import { requestsRouter } from "./modules/requests/router";
 import { mitItemsRouter } from "./modules/mit-items/router";
+import { workflowRouter } from "./modules/workflow/router";
 import { workloadRouter } from "./modules/workload/router";
 import { botRouter } from "./modules/bot/router";
 import { performanceRouter } from "./modules/performance/router";
@@ -33,6 +34,7 @@ const app = new Elysia()
   .use(uatRouter)
   .use(requestsRouter)
   .use(mitItemsRouter)
+  .use(workflowRouter)
   .use(workloadRouter)
   .use(botRouter)
   .use(performanceRouter)
