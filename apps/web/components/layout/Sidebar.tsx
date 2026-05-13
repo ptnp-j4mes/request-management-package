@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "../ui/cn";
 import { GlassAvatar } from "../ui/GlassAvatar";
+import { GlassTooltip } from "../ui/GlassTooltip";
 import {
   LayoutDashboard, FolderKanban, Inbox, ClipboardList,
   TestTube, Shield, BarChart3, Bot, Settings, Zap,
@@ -35,6 +36,8 @@ const NAV: NavItem[] = [
   { href: "/admin",       label: "Admin",        icon: Settings,        group: "System", roles: ["ADMIN"] },
 ];
 
+const GROUP_ORDER = ["Workspace", "Work", "Analytics", "System"];
+
 export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
@@ -43,74 +46,115 @@ export function Sidebar() {
   if (pathname === "/login") return null;
 
   const visible = NAV.filter((item) => !item.roles || item.roles.some((r) => user?.roles.includes(r)));
-  const groups = [...new Set(visible.map((i) => i.group))];
+  const groups = GROUP_ORDER.filter((group) => visible.some((item) => item.group === group));
 
   return (
     <aside className={cn(
-      "glass-sidebar flex flex-col transition-all duration-300 shrink-0 relative z-20",
-      collapsed ? "w-[72px]" : "w-64"
+      "glass-sidebar relative z-30 flex w-full shrink-0 flex-col transition-all duration-300",
+      "lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden",
+      collapsed ? "lg:w-[80px]" : "lg:w-[var(--sidebar-w)]"
     )}>
-      {/* Logo */}
-      <div className={cn("flex items-center gap-3 border-b border-white/[.07] px-4 py-5", collapsed && "justify-center px-2")}>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm bg-gradient-to-br from-blue-400/70 to-violet-400/60 shadow-glow-blue">
+      <div className={cn(
+        "border-b border-white/[.08] bg-white/[.02] px-4 py-4",
+        "lg:px-4 lg:py-5",
+        collapsed && "lg:px-2"
+      )}>
+        <div className={cn("flex items-center gap-3", collapsed && "lg:justify-center lg:gap-0")}>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-white/20 bg-gradient-to-br from-blue-400/70 to-violet-400/60 shadow-glow-blue">
           <Gem className="h-5 w-5 text-white" />
-        </div>
-        {!collapsed && (
-          <div className="min-w-0">
-            <h1 className="truncate text-[15px] font-bold tracking-tight text-white/90">Request Platform</h1>
-            <p className="text-[10px] text-white/35 mt-0.5">Workflow & Tracking</p>
           </div>
-        )}
+          {!collapsed && (
+            <div className="min-w-0">
+              <h1 className="truncate text-[15px] font-semibold tracking-tight text-white/92">Request Platform</h1>
+              <p className="mt-0.5 truncate text-[11px] leading-relaxed text-white/48">Workflow &amp; Tracking</p>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-4">
+      <nav aria-label="Primary" className="flex-1 min-h-0 overflow-y-auto px-3 py-4 lg:px-2">
         {groups.map((group) => {
           const items = visible.filter((i) => i.group === group);
           return (
-            <div key={group}>
+            <section
+              key={group}
+              className={cn("pb-4 last:pb-0", group !== groups[0] && "pt-4 border-t border-white/[.06]")}
+            >
               {!collapsed && (
-                <p className="mx-2 mb-2 text-[10px] font-bold uppercase tracking-[.14em] text-white/30">{group}</p>
+                <p className="mx-2 mb-2 text-[10px] font-black uppercase tracking-[.16em] text-white/38">
+                  {group}
+                </p>
               )}
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {items.map(({ href, label, icon: Icon }) => {
                   const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
-                  return (
+                  const navItem = (
                     <Link
-                      key={href}
                       href={href}
+                      aria-current={active ? "page" : undefined}
                       title={collapsed ? label : undefined}
                       className={cn(
-                        "relative flex items-center gap-3 rounded-xs px-3 py-2.5 text-sm font-medium transition-all duration-150",
-                        collapsed && "justify-center px-0",
-                        active
-                          ? "bg-white/[.12] border border-white/[.18] text-white"
-                          : "text-white/55 hover:bg-white/[.07] hover:text-white/85"
+                        "group relative grid grid-cols-[40px_minmax(0,1fr)] items-center gap-3 rounded-[16px] border px-3 py-2.5 text-left text-sm font-medium transition-all duration-200",
+                        collapsed && "lg:grid-cols-1 lg:justify-items-center lg:px-0 lg:py-[0.6875rem] lg:border-transparent lg:bg-transparent lg:shadow-none",
+                        collapsed
+                          ? active
+                            ? "text-white"
+                            : "text-white/58 hover:bg-transparent hover:text-white/88"
+                          : active
+                            ? "border-[#4f9cf9]/18 bg-[#4f9cf9]/[.07] text-white shadow-[0_10px_30px_rgba(0,0,0,.18),inset_0_1px_0_rgba(79,156,249,.08)]"
+                            : "border-transparent text-white/58 hover:border-[#4f9cf9]/12 hover:bg-[#4f9cf9]/[.04] hover:text-white/88"
                       )}
                     >
-                      {active && (
-                        <span className="absolute left-0 top-[20%] bottom-[20%] w-[3px] rounded-r-full bg-gradient-to-b from-[#4f9cf9] to-[#a78bfa]" />
+                      <span
+                        className={cn(
+                          "grid h-10 w-10 place-items-center rounded-[14px] border text-[0] transition-all duration-200",
+                          collapsed
+                            ? active
+                              ? "border-transparent bg-[#4f9cf9]/[.18] text-[#9ec7ff] shadow-[0_0_0_1px_rgba(79,156,249,.10),0_0_18px_rgba(79,156,249,.12)]"
+                              : "border-transparent bg-white/[.035] text-white/68 group-hover:bg-[#4f9cf9]/[.10] group-hover:text-[#9ec7ff]"
+                            : active
+                              ? "border-[#4f9cf9]/28 bg-[#4f9cf9]/[.14] text-[#9ec7ff] shadow-[0_0_0_1px_rgba(79,156,249,.08)]"
+                              : "border-white/[.08] bg-white/[.04] text-white/68 group-hover:border-[#4f9cf9]/18 group-hover:bg-[#4f9cf9]/[.07] group-hover:text-[#9ec7ff]"
+                        )}
+                      >
+                        <Icon className="h-[18px] w-[18px] shrink-0" />
+                      </span>
+                      <span className={cn("min-w-0 truncate", collapsed && "lg:hidden")}>{label}</span>
+                      {active && !collapsed && (
+                        <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-gradient-to-b from-[#4f9cf9] to-[#7c3aed]" />
                       )}
-                      <Icon className="h-[18px] w-[18px] shrink-0" />
-                      {!collapsed && <span className="truncate">{label}</span>}
                     </Link>
+                  );
+
+                  return (
+                    <div key={href}>
+                      {collapsed ? (
+                        <GlassTooltip content={label} side="right">
+                          {navItem}
+                        </GlassTooltip>
+                      ) : (
+                        navItem
+                      )}
+                    </div>
                   );
                 })}
               </div>
-            </div>
+            </section>
           );
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="border-t border-white/[.07] p-3 space-y-2">
+      <div className="border-t border-white/[.08] bg-white/[.015] p-3">
         {user && (
-          <div className={cn("flex items-center gap-3 rounded-xs p-2", collapsed && "justify-center")}>
+          <div className={cn(
+            "flex items-center gap-3 rounded-[16px] border border-white/[.08] bg-white/[.04] p-2.5",
+            collapsed && "lg:justify-center lg:px-2"
+          )}>
             <GlassAvatar name={user.name} size="sm" online />
             {!collapsed && (
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold text-white/85">{user.name}</p>
-                <p className="truncate text-[11px] text-white/35">{user.roles?.[0] ?? "User"}</p>
+                <p className="truncate text-[13px] font-semibold text-white/88">{user.name}</p>
+                <p className="truncate text-[11px] text-white/40">{user.roles?.[0] ?? "User"}</p>
               </div>
             )}
           </div>
@@ -119,19 +163,19 @@ export function Sidebar() {
           onClick={logout}
           title="Logout"
           className={cn(
-            "flex w-full items-center gap-3 rounded-xs px-3 py-2 text-sm text-white/45 hover:bg-red-400/10 hover:text-[#f87272] transition-colors",
-            collapsed && "justify-center"
+            "mt-2 flex w-full items-center gap-3 rounded-[16px] border border-transparent px-3 py-2.5 text-sm text-white/48 transition-all hover:border-red-400/15 hover:bg-red-400/10 hover:text-[#f87272]",
+            collapsed && "lg:justify-center lg:px-2"
           )}
         >
           <LogOut className="h-4 w-4 shrink-0" />
-          {!collapsed && "Logout"}
+          {!collapsed && <span>Logout</span>}
         </button>
       </div>
 
-      {/* Collapse toggle */}
       <button
         onClick={() => setCollapsed((c) => !c)}
-        className="absolute -right-3 top-20 flex h-6 w-6 items-center justify-center rounded-full bg-white/10 border border-white/20 text-white/50 hover:bg-white/20 hover:text-white transition-all backdrop-blur-[10px] shadow-glass"
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className="absolute -right-3 top-20 hidden h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white/60 shadow-glass backdrop-blur-[10px] transition-all hover:bg-white/20 hover:text-white lg:flex"
       >
         {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
       </button>

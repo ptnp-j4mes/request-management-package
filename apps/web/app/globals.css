@@ -75,7 +75,7 @@
     --radius-sm: 12px;
     --radius-xs: 10px;
 
-    --sidebar-w: 256px;
+    --sidebar-w: 272px;
     --transition: 0.2s ease;
   }
 }
@@ -98,9 +98,14 @@
     box-shadow: var(--shadow-card);
   }
   .glass-sidebar {
-    background: var(--glass-sidebar);
-    backdrop-filter: blur(30px) saturate(160%);
-    border-right: 1px solid var(--border-subtle);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%),
+      var(--glass-sidebar);
+    backdrop-filter: blur(32px) saturate(165%);
+    border-right: 1px solid var(--border-glass);
+    box-shadow:
+      inset -1px 0 0 rgba(255,255,255,0.05),
+      0 18px 50px rgba(0,0,0,0.24);
   }
   .glass-modal {
     background: var(--glass-modal);
