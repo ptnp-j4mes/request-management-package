@@ -1,15 +1,76 @@
 import { Elysia } from "elysia";
+import dayjs from "dayjs";
 import { db } from "../../lib/db";
-import { requests, requestComments, requestStatusHistory } from "@rm/db";
+import { requests, requestComments, requestStatusHistory, projects, requestBugs, requestChanges, uatCycles } from "@rm/db";
 import { ok, paginated, err } from "../../lib/response";
 import { eq, and, ilike, count, desc } from "drizzle-orm";
 import { authenticate, authorize } from "../../lib/auth";
+import { buildProjectProgressSummary } from "../projects/progress";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 async function getRequest(id: number) {
   const [req] = await db.select().from(requests).where(eq(requests.id, id));
   return req ?? null;
+}
+
+async function getLinkedProject(projectId: number | null | undefined) {
+  if (!projectId) return null;
+  const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
+  if (!project) return null;
+  const progressSummary = await buildProjectProgressSummary(project.id);
+  const [activeUat] = await db
+    .select({ total: count() })
+    .from(uatCycles)
+    .where(and(eq(uatCycles.projectId, project.id), eq(uatCycles.status, "active")));
+  return { ...project, progressSummary, hasActiveUatCycle: (activeUat?.total ?? 0) > 0 };
+}
+
+async function linkRequestToProject(requestId: number, projectId: number, userId: number, oldStatus: string, createProjectPayload?: any) {
+  let nextProjectId = projectId;
+  if (createProjectPayload) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const [{ total }] = await db.select({ total: count() }).from(projects);
+    const projectCode = `AIT-${year}${String(Number(total) + 1).padStart(4, "0")}`;
+    const projectName =
+      String(
+        createProjectPayload?.projectName ??
+        createProjectPayload?.subject ??
+        createProjectPayload?.title ??
+        createProjectPayload?.requestSubject ??
+        "New Project",
+      ).trim() || "New Project";
+    const [createdProject] = await db.insert(projects).values({
+      projectCode,
+      projectName,
+      customerName: createProjectPayload?.customerName ?? null,
+      status: "active",
+      startDate: createProjectPayload?.startDate && dayjs(String(createProjectPayload.startDate)).isValid()
+        ? dayjs(String(createProjectPayload.startDate)).format("YYYY-MM-DD")
+        : null,
+      goLiveDate: createProjectPayload?.goLiveDate && dayjs(String(createProjectPayload.goLiveDate)).isValid()
+        ? dayjs(String(createProjectPayload.goLiveDate)).format("YYYY-MM-DD")
+        : null,
+      estimatedMd: createProjectPayload?.estimatedMd ?? null,
+    }).returning();
+    nextProjectId = createdProject.id;
+  }
+
+  const [updated] = await db.update(requests).set({
+    projectId: nextProjectId,
+    status: "linked_to_project",
+    updatedAt: new Date(),
+  }).where(eq(requests.id, requestId)).returning();
+
+  await db.insert(requestStatusHistory).values({
+    requestId,
+    oldStatus,
+    newStatus: "linked_to_project",
+    changedBy: userId,
+  });
+
+  return updated;
 }
 
 async function transition(
@@ -74,6 +135,16 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
   .get("/:id", async ({ params }: any) => {
     const request = await getRequest(Number(params.id));
     if (!request) return err("Request not found");
+    const bug = await db
+      .select()
+      .from(requestBugs)
+      .where(eq(requestBugs.requestId, request.id))
+      .then((rows) => rows[0] ?? null);
+    const change = await db
+      .select()
+      .from(requestChanges)
+      .where(eq(requestChanges.requestId, request.id))
+      .then((rows) => rows[0] ?? null);
     const comments = await db
       .select()
       .from(requestComments)
@@ -82,18 +153,37 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
       .select()
       .from(requestStatusHistory)
       .where(eq(requestStatusHistory.requestId, request.id));
-    return ok({ ...request, comments, history });
+    const project = await getLinkedProject(request.projectId);
+    return ok({ ...request, project, bug, change, comments, history });
   })
 
   // ── create ──
   .post("/", async ({ body, user }: any) => {
+    const channel = String(body?.channel ?? "").trim();
+    const requestType = String(body?.requestType ?? "").trim();
+    const subject = String(body?.subject ?? "").trim();
+    const description = String(body?.description ?? "").trim();
+    if (!channel || !requestType || !subject || !description) {
+      return err("channel, requestType, subject, and description are required");
+    }
+
     const now = new Date();
     const year = now.getFullYear();
     const [{ total }] = await db.select({ total: count() }).from(requests);
     const requestNo = `REQ-${year}${String(Number(total) + 1).padStart(4, "0")}`;
     const [created] = await db
       .insert(requests)
-      .values({ ...body, requestNo, requesterUserId: body.requesterUserId ?? user.id, status: "draft" })
+      .values({
+        ...body,
+        channel,
+        requestType,
+        subject,
+        description,
+        requestNo,
+        requesterUserId: body.requesterUserId ?? user.id,
+        projectId: body.projectId ?? null,
+        status: "draft",
+      })
       .returning();
     return ok(created);
   })
@@ -123,11 +213,141 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
       }),
   )
 
-  // ── comments ──
-  .post("/:id/comments", async ({ params, body, user }: any) => {
+  // ── project link/create ──
+  .patch("/:id/link-project", async ({ params, body, user, set }: any) => {
+    if (!user.roles.includes("ADMIN") && !user.roles.includes("IT_MANAGER") && !user.roles.includes("APPROVER")) {
+      set.status = 403;
+      return err("Insufficient permissions");
+    }
+    const req = await getRequest(Number(params.id));
+    if (!req) return err("Request not found");
+    if (req.status !== "approved") {
+      set.status = 400;
+      return err("Project link is only allowed after request approval");
+    }
+
+    const projectId = body?.projectId ?? null;
+    if (!projectId && !body?.createProject) return err("projectId is required");
+    const updated = await linkRequestToProject(req.id, Number(projectId ?? 0), user.id, req.status, body?.createProject ? body?.project ?? { subject: req.subject } : null);
+    return ok(updated);
+  })
+  .post("/:id/unlink-project", async ({ params, user, set }: any) => {
+    if (!user.roles.includes("ADMIN") && !user.roles.includes("IT_MANAGER")) {
+      set.status = 403;
+      return err("Insufficient permissions");
+    }
+    const req = await getRequest(Number(params.id));
+    if (!req) return err("Request not found");
+    if (!req.projectId) return err("Request is not linked to a project");
+
+    const nextStatus = req.status === "linked_to_project" ? "approved" : req.status;
+    const [updated] = await db
+      .update(requests)
+      .set({
+        projectId: null,
+        status: nextStatus,
+        updatedAt: new Date(),
+      })
+      .where(eq(requests.id, req.id))
+      .returning();
+
+    if (nextStatus !== req.status) {
+      await db.insert(requestStatusHistory).values({
+        requestId: req.id,
+        oldStatus: req.status,
+        newStatus: nextStatus,
+        changedBy: user.id,
+      });
+    }
+
+    return ok(updated);
+  })
+  .post("/:id/create-project", async ({ params, body, user, set }: any) => {
+    if (!user.roles.includes("ADMIN") && !user.roles.includes("IT_MANAGER") && !user.roles.includes("APPROVER")) {
+      set.status = 403;
+      return err("Insufficient permissions");
+    }
+    const req = await getRequest(Number(params.id));
+    if (!req) return err("Request not found");
+    if (req.status !== "approved") {
+      set.status = 400;
+      return err("Project creation is only allowed after request approval");
+    }
+    const projectPayload = body?.project ?? body ?? {};
+    const updated = await linkRequestToProject(req.id, 0, user.id, req.status, {
+      ...projectPayload,
+      projectName:
+        projectPayload?.projectName ??
+        projectPayload?.subject ??
+        req.subject ??
+        req.requestNo,
+      requestSubject: req.subject,
+      requestNo: req.requestNo,
+    });
+    return ok(updated);
+  })
+  .post("/:id/uat-feedback", async ({ params, body, user, set }: any) => {
+    const req = await getRequest(Number(params.id));
+    if (!req) return err("Request not found");
+    if (!req.projectId) {
+      set.status = 400;
+      return err("Request must be linked to a project before submitting UAT feedback");
+    }
+
+    const [activeCycle] = await db
+      .select()
+      .from(uatCycles)
+      .where(and(eq(uatCycles.projectId, req.projectId), eq(uatCycles.status, "active")))
+      .limit(1);
+
+    if (!activeCycle) {
+      set.status = 400;
+      return err("UAT feedback is only allowed while the linked project has an active UAT cycle");
+    }
+
+    const commentText = String(body?.commentText ?? "").trim();
+    if (!commentText) {
+      set.status = 400;
+      return err("commentText is required");
+    }
+
     const [comment] = await db
       .insert(requestComments)
-      .values({ requestId: Number(params.id), createdBy: user.id, ...body })
+      .values({
+        requestId: req.id,
+        createdBy: user.id,
+        commentType: body?.commentType ?? "defect",
+        commentText,
+      })
+      .returning();
+
+    const severity = body?.severity ?? "medium";
+    const existingBug = await db.select().from(requestBugs).where(eq(requestBugs.requestId, req.id)).limit(1);
+    if (existingBug.length > 0) {
+      await db.update(requestBugs)
+        .set({ severity, rootCause: body?.rootCause ?? null, workaround: body?.workaround ?? null, fixVersion: body?.fixVersion ?? null, retestResult: body?.retestResult ?? null })
+        .where(eq(requestBugs.requestId, req.id));
+    } else {
+      await db.insert(requestBugs).values({
+        requestId: req.id,
+        severity,
+        rootCause: body?.rootCause ?? null,
+        workaround: body?.workaround ?? null,
+        fixVersion: body?.fixVersion ?? null,
+        retestResult: body?.retestResult ?? null,
+      });
+    }
+
+    return ok({ comment });
+  })
+
+  // ── comments ──
+  .post("/:id/comments", async ({ params, body, user }: any) => {
+    const commentText = String(body?.commentText ?? "").trim();
+    if (!commentText) return err("commentText is required");
+    const [comment] = await db
+      .insert(requestComments)
+      .values({ requestId: Number(params.id), createdBy: user.id, commentText, commentType: body?.commentType ?? "comment" })
       .returning();
     return ok(comment);
   })
@@ -167,7 +387,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     const req = await getRequest(Number(params.id));
     if (!req) return err("Request not found");
     if (req.status !== "submitted") return err(`Cannot approve from status '${req.status}'`);
-    const updated = await transition(req.id, req.status, "manager_approved", user.id, {
+    const updated = await transition(req.id, req.status, "approved", user.id, {
       approverId: user.id,
       approvedAt: new Date(),
     });
@@ -189,7 +409,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     }
     const req = await getRequest(Number(params.id));
     if (!req) return err("Request not found");
-    const allowedFromStatuses = ["submitted", "manager_approved", "ba_review", "in_qa"];
+    const allowedFromStatuses = ["submitted", "approved", "linked_to_project", "in_progress", "uat"];
     if (!allowedFromStatuses.includes(req.status)) {
       return err(`Cannot reject from status '${req.status}'`);
     }
@@ -208,7 +428,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     return ok(updated);
   })
 
-  // assign-ba — IT_MANAGER, ADMIN
+  // assign-ba — deprecated
   .post("/:id/assign-ba", async ({ params, body, user, set }: any) => {
     if (!user.roles.includes("ADMIN") && !user.roles.includes("IT_MANAGER")) {
       set.status = 403;
@@ -225,7 +445,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     return ok(updated);
   })
 
-  // assign-dev — IT_MANAGER, ADMIN
+  // assign-dev — deprecated
   .post("/:id/assign-dev", async ({ params, body, user, set }: any) => {
     if (!user.roles.includes("ADMIN") && !user.roles.includes("IT_MANAGER")) {
       set.status = 403;
@@ -242,7 +462,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     return ok(updated);
   })
 
-  // assign-qa — IT_MANAGER, ADMIN
+  // assign-qa — deprecated
   .post("/:id/assign-qa", async ({ params, body, user, set }: any) => {
     if (!user.roles.includes("ADMIN") && !user.roles.includes("IT_MANAGER")) {
       set.status = 403;
@@ -259,7 +479,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     return ok(updated);
   })
 
-  // start-development — DEVELOPER or FULLSTACK who is assigned as devOwner
+  // start-development — deprecated
   .post("/:id/start-development", async ({ params, user, set }: any) => {
     if (
       !user.roles.includes("ADMIN") &&
@@ -286,7 +506,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     return ok(updated);
   })
 
-  // ready-for-qa — DEVELOPER or FULLSTACK (devOwner)
+  // ready-for-qa — deprecated
   .post("/:id/ready-for-qa", async ({ params, user, set }: any) => {
     if (
       !user.roles.includes("ADMIN") &&
@@ -313,7 +533,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     return ok(updated);
   })
 
-  // qa-pass — QA (qaOwner), FULLSTACK, IT_MANAGER, ADMIN
+  // qa-pass — deprecated
   .post("/:id/qa-pass", async ({ params, user, set }: any) => {
     if (
       !user.roles.includes("ADMIN") &&
@@ -340,7 +560,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     return ok(updated);
   })
 
-  // qa-fail — QA (qaOwner), FULLSTACK, IT_MANAGER, ADMIN
+  // qa-fail — deprecated
   .post("/:id/qa-fail", async ({ params, body, user, set }: any) => {
     if (
       !user.roles.includes("ADMIN") &&
@@ -378,7 +598,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     return ok(updated);
   })
 
-  // uat-approve — REQUESTER (must be owner), APPROVER, IT_MANAGER, ADMIN
+  // uat-approve — deprecated
   .post("/:id/uat-approve", async ({ params, user, set }: any) => {
     const req = await getRequest(Number(params.id));
     if (!req) return err("Request not found");
@@ -402,7 +622,7 @@ export const requestsRouter = new Elysia({ prefix: "/requests" })
     return ok(updated);
   })
 
-  // close — IT_MANAGER, ADMIN
+  // close — deprecated
   .post("/:id/close", async ({ params, user, set }: any) => {
     if (!user.roles.includes("ADMIN") && !user.roles.includes("IT_MANAGER")) {
       set.status = 403;

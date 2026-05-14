@@ -58,6 +58,8 @@ export const uatCycleComments = pgTable("uat_cycle_comments", {
   // "open" | "in_progress" | "resolved" | "closed"
   linkedRequestId: bigint("linked_request_id", { mode: "number" })
     .references(() => requests.id, { onDelete: "set null" }),
+  linkedMitItemId: bigint("linked_mit_item_id", { mode: "number" }),
+  linkedProjectTaskId: bigint("linked_project_task_id", { mode: "number" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

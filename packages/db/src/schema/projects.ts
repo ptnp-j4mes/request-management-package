@@ -1,4 +1,4 @@
-import { pgTable, bigserial, varchar, date, timestamp, bigint, primaryKey, numeric } from "drizzle-orm/pg-core";
+import { pgTable, bigserial, varchar, date, timestamp, bigint, primaryKey, numeric, text } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 export const projects = pgTable("projects", {
@@ -26,3 +26,13 @@ export const projectMembers = pgTable(
     pk: primaryKey({ columns: [t.projectId, t.userId] }),
   })
 );
+
+export const projectStatusHistory = pgTable("project_status_history", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  projectId: bigint("project_id", { mode: "number" }).notNull().references(() => projects.id, { onDelete: "cascade" }),
+  oldStatus: varchar("old_status", { length: 30 }),
+  newStatus: varchar("new_status", { length: 30 }).notNull(),
+  changedBy: bigint("changed_by", { mode: "number" }).references(() => users.id),
+  note: text("note"),
+  changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+});

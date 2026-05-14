@@ -1,4 +1,5 @@
 import { Elysia } from "elysia";
+import { jwt } from "@elysiajs/jwt";
 import { db } from "../../lib/db";
 import { projectGithubSettings, systemGithubAccount, mitItems, users } from "@rm/db";
 import { ok, err } from "../../lib/response";
@@ -9,6 +10,31 @@ const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID ?? "";
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET ?? "";
 const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI ?? "http://localhost:9898/auth/github/callback";
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:9899";
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET ?? "changeme-refresh-set-in-env";
+
+const refreshJwtPlugin = new Elysia({ name: "jwt-refresh-plugin" }).use(
+  jwt({ name: "jwtRefresh", secret: JWT_REFRESH_SECRET })
+);
+
+function parseCookie(header: string, name: string) {
+  return header
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .find((part) => part.startsWith(`${name}=`))
+    ?.slice(name.length + 1) ?? "";
+}
+
+function redirectGithubError(error: string, projectId?: number | null) {
+  if (projectId) {
+    return Response.redirect(
+      `${FRONTEND_URL}/projects/${projectId}?tab=github&github_error=${encodeURIComponent(error)}`,
+      302,
+    );
+  }
+
+  return Response.redirect(`${FRONTEND_URL}/settings?tab=github&github_error=${encodeURIComponent(error)}`, 302);
+}
 
 // ── GitHub API helpers ─────────────────────────────────────────────────────────
 
@@ -69,17 +95,27 @@ async function resolveSettings(projectId: number) {
     .from(projectGithubSettings)
     .where(eq(projectGithubSettings.projectId, projectId));
 
-  if (ps?.accessToken && ps.repoOwner && ps.repoName) {
-    return { token: ps.accessToken, owner: ps.repoOwner, repo: ps.repoName, branch: ps.defaultBranch };
+  if (!ps?.repoOwner?.trim() || !ps?.repoName?.trim()) {
+    throw new Error("GitHub repo not configured — กรุณาตั้งค่า Owner/Org และ Repository Name ในหน้า GitHub settings");
   }
 
-  // Fallback: system account (needs project settings for owner/repo)
-  const [sys] = await db.select().from(systemGithubAccount).limit(1);
-  if (sys?.accessToken && ps?.repoOwner && ps?.repoName) {
-    return { token: sys.accessToken, owner: ps.repoOwner, repo: ps.repoName, branch: ps.defaultBranch };
+  // Token priority: project-specific → system account
+  let token: string | null = ps.accessToken ?? null;
+  if (!token) {
+    const [sys] = await db.select().from(systemGithubAccount).limit(1);
+    token = sys?.accessToken ?? null;
   }
 
-  throw new Error("No GitHub token available — connect GitHub in Settings or Project");
+  if (!token) {
+    throw new Error("ยังไม่ได้เชื่อมต่อ GitHub — กรุณากด Connect GitHub ในหน้า Project หรือ Settings");
+  }
+
+  return {
+    token,
+    owner: ps.repoOwner.trim(),
+    repo: ps.repoName.trim(),
+    branch: ps.defaultBranch?.trim() || "main",
+  };
 }
 
 // ── Router ─────────────────────────────────────────────────────────────────────
@@ -89,53 +125,54 @@ async function resolveSettings(projectId: number) {
 
 export const githubRouter = new Elysia()
   .use(jwtPlugin)
+  .use(refreshJwtPlugin)
 
-  // ── OAuth: initiate — browser navigation, token via ?token= query param ──────
-  .get("/auth/github/connect", async ({ query, set, jwt }: any) => {
+  // ── OAuth: initiate — browser navigation, refresh cookie provides identity ───
+  .get("/auth/github/connect", async ({ query, headers, set, jwt, jwtRefresh }: any) => {
     if (!GITHUB_CLIENT_ID) {
       set.status = 500;
       return { error: "GITHUB_CLIENT_ID not configured" };
     }
-    const token = query.token ?? "";
-    const payload = token ? await jwt.verify(token) : null;
-    if (!payload) {
-      set.status = 401;
-      return { success: false, error: "Missing or invalid access token" };
-    }
-    const projectId = query.projectId ?? "";
+
+    const projectId = query.projectId ? Number(query.projectId) : null;
     const isSystem = query.system === "true";
-    const state = Buffer.from(
-      JSON.stringify({ projectId, userId: Number(payload.sub), isSystem }),
-    ).toString("base64url");
+    const refreshTokenCookie = parseCookie(String(headers?.cookie ?? ""), "rm_token");
+    const legacyAccessToken = String(query.token ?? "");
+    const payload =
+      (refreshTokenCookie ? await jwtRefresh.verify(refreshTokenCookie) : null) ??
+      (legacyAccessToken ? await jwt.verify(legacyAccessToken) : null);
+    if (!payload) {
+      return redirectGithubError("missing_or_invalid_refresh_token", projectId);
+    }
+
+    const state = Buffer.from(JSON.stringify({ projectId, userId: Number(payload.sub), isSystem })).toString("base64url");
     const githubUrl =
       `https://github.com/login/oauth/authorize` +
       `?client_id=${GITHUB_CLIENT_ID}` +
       `&redirect_uri=${encodeURIComponent(GITHUB_REDIRECT_URI)}` +
       `&scope=repo` +
       `&state=${state}`;
-    set.redirect = githubUrl;
+    return Response.redirect(githubUrl, 302);
   })
 
   // ── OAuth: callback — called by GitHub, no Authorization header ──────────────
   .get("/auth/github/callback", async ({ query, set }: any) => {
     const { code, state, error } = query;
 
-    if (error) {
-      set.redirect = `${FRONTEND_URL}?github_error=${encodeURIComponent(error)}`;
-      return;
+    let projectId: number | null = null;
+    let isSystem = false;
+    let userId: number | null = null;
+    try {
+      const parsedState = JSON.parse(Buffer.from(state, "base64url").toString());
+      projectId = Number(parsedState.projectId) || null;
+      userId = Number(parsedState.userId) || null;
+      isSystem = !!parsedState.isSystem;
+    } catch {
+      return redirectGithubError("invalid_state", projectId);
     }
 
-    let projectId: number | null = null;
-    let userId: number | null = null;
-    let isSystem = false;
-    try {
-      const parsed = JSON.parse(Buffer.from(state, "base64url").toString());
-      projectId = Number(parsed.projectId) || null;
-      userId = Number(parsed.userId) || null;
-      isSystem = !!parsed.isSystem;
-    } catch {
-      set.redirect = `${FRONTEND_URL}?github_error=invalid_state`;
-      return;
+    if (error) {
+      return redirectGithubError(error, isSystem ? null : projectId);
     }
 
     const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
@@ -150,16 +187,14 @@ export const githubRouter = new Elysia()
     });
 
     if (!tokenRes.ok) {
-      set.redirect = `${FRONTEND_URL}?github_error=token_exchange_failed`;
-      return;
+      return redirectGithubError("token_exchange_failed", isSystem ? null : projectId);
     }
 
     const tokenData = (await tokenRes.json()) as any;
     const accessToken: string = tokenData.access_token;
 
     if (!accessToken) {
-      set.redirect = `${FRONTEND_URL}?github_error=${encodeURIComponent(tokenData.error ?? "no_token")}`;
-      return;
+      return redirectGithubError(tokenData.error ?? "no_token", isSystem ? null : projectId);
     }
 
     // Get GitHub username from /user
@@ -180,8 +215,7 @@ export const githubRouter = new Elysia()
         await db.insert(systemGithubAccount)
           .values({ label: "default", accessToken, githubUsername, connectedByUserId: userId });
       }
-      set.redirect = `${FRONTEND_URL}/settings?tab=github&connected=system`;
-      return;
+      return Response.redirect(`${FRONTEND_URL}/settings?tab=github&connected=system`, 302);
     }
 
     if (projectId) {
@@ -204,9 +238,9 @@ export const githubRouter = new Elysia()
           connectedByUserId: userId,
         });
       }
-      set.redirect = `${FRONTEND_URL}/projects/${projectId}?tab=github&connected=1`;
+      return Response.redirect(`${FRONTEND_URL}/projects/${projectId}?tab=github&connected=1`, 302);
     } else {
-      set.redirect = `${FRONTEND_URL}/settings?tab=github&connected=1`;
+      return Response.redirect(`${FRONTEND_URL}/settings?tab=github&connected=1`, 302);
     }
   })
 
@@ -290,6 +324,159 @@ export const githubRouter = new Elysia()
     })
   )
 
+  // ── Project GitHub branches / pulls ───────────────────────────────────────────
+  .get("/projects/:id/github/branches", async ({ params, set }: any) => {
+    try {
+      const cfg = await resolveSettings(Number(params.id));
+      const branches = await ghFetch(cfg.token, "GET", `/repos/${cfg.owner}/${cfg.repo}/branches?per_page=100`);
+      return ok((branches as any[]).map((branch) => ({
+        name: branch.name,
+        protected: !!branch.protected,
+        commitSha: branch.commit?.sha ?? null,
+        commitUrl: branch.commit?.url ?? null,
+      })));
+    } catch (e: any) {
+      set.status = 400;
+      return err(e.message ?? "Failed to fetch branches");
+    }
+  })
+  .get("/projects/:id/github/pulls", async ({ params, query, set }: any) => {
+    try {
+      const cfg = await resolveSettings(Number(params.id));
+      const state = (query.state ?? "open") as string;
+      const pulls = await ghFetch(cfg.token, "GET", `/repos/${cfg.owner}/${cfg.repo}/pulls?state=${encodeURIComponent(state)}&per_page=100`);
+      return ok((pulls as any[]).map((pr) => ({
+        number: pr.number,
+        title: pr.title,
+        state: pr.state,
+        draft: !!pr.draft,
+        htmlUrl: pr.html_url,
+        head: pr.head?.ref ?? null,
+        base: pr.base?.ref ?? null,
+        author: pr.user?.login ?? null,
+      })));
+    } catch (e: any) {
+      set.status = 400;
+      return err(e.message ?? "Failed to fetch pull requests");
+    }
+  })
+
+  .use(new Elysia().use(authorize(["IT_MANAGER", "ADMIN"]))
+    .post("/projects/:id/github/branches", async ({ params, body, set }: any) => {
+      const projectId = Number(params.id);
+      const branchName: string = String(body?.branchName ?? "").trim();
+      const baseBranch: string = String(body?.baseBranch ?? "").trim();
+      if (!branchName) {
+        set.status = 400;
+        return err("branchName is required");
+      }
+
+      let cfg;
+      try {
+        cfg = await resolveSettings(projectId);
+      } catch (e: any) {
+        set.status = 400;
+        return err(e.message);
+      }
+
+      const sourceBranch = baseBranch || cfg.branch;
+      try {
+        const refData = await ghFetch(cfg.token, "GET", `/repos/${cfg.owner}/${cfg.repo}/git/ref/heads/${encodeURIComponent(sourceBranch)}`);
+        const sha: string = refData.object.sha;
+        await ghFetch(cfg.token, "POST", `/repos/${cfg.owner}/${cfg.repo}/git/refs`, {
+          ref: `refs/heads/${branchName}`,
+          sha,
+        });
+        return ok({ branchName, baseBranch: sourceBranch, baseSha: sha.slice(0, 7) });
+      } catch (e: any) {
+        set.status = 400;
+        return err(e.message ?? "Failed to create branch");
+      }
+    })
+
+    .delete("/projects/:id/github/branches/:branchName", async ({ params, set }: any) => {
+      const projectId = Number(params.id);
+      const branchName = decodeURIComponent(String(params.branchName ?? ""));
+      let cfg;
+      try {
+        cfg = await resolveSettings(projectId);
+      } catch (e: any) {
+        set.status = 400;
+        return err(e.message);
+      }
+
+      try {
+        await ghFetch(cfg.token, "DELETE", `/repos/${cfg.owner}/${cfg.repo}/git/refs/heads/${encodeURIComponent(branchName)}`);
+        return ok({ deleted: true, branchName });
+      } catch (e: any) {
+        set.status = 400;
+        return err(e.message ?? "Failed to delete branch");
+      }
+    })
+
+    .post("/projects/:id/github/pulls", async ({ params, body, set }: any) => {
+      const projectId = Number(params.id);
+      const { title, head, base, body: prBody } = body as any;
+      if (!title || !head || !base) {
+        set.status = 400;
+        return err("title, head and base are required");
+      }
+
+      let cfg;
+      try {
+        cfg = await resolveSettings(projectId);
+      } catch (e: any) {
+        set.status = 400;
+        return err(e.message);
+      }
+
+      try {
+        const pr = await ghFetch(cfg.token, "POST", `/repos/${cfg.owner}/${cfg.repo}/pulls`, {
+          title,
+          head,
+          base,
+          body: prBody ?? undefined,
+        });
+        return ok({
+          number: pr.number,
+          title: pr.title,
+          htmlUrl: pr.html_url,
+          state: pr.state,
+          draft: !!pr.draft,
+          head: pr.head?.ref ?? null,
+          base: pr.base?.ref ?? null,
+        });
+      } catch (e: any) {
+        set.status = 400;
+        return err(e.message ?? "Failed to create pull request");
+      }
+    })
+
+    .put("/projects/:id/github/pulls/:prNumber/merge", async ({ params, body, set }: any) => {
+      const projectId = Number(params.id);
+      const prNumber = Number(params.prNumber);
+      const mergeMethod = String(body?.mergeMethod ?? "squash");
+
+      let cfg;
+      try {
+        cfg = await resolveSettings(projectId);
+      } catch (e: any) {
+        set.status = 400;
+        return err(e.message);
+      }
+
+      try {
+        await ghFetch(cfg.token, "PUT", `/repos/${cfg.owner}/${cfg.repo}/pulls/${prNumber}/merge`, {
+          merge_method: mergeMethod,
+        });
+        return ok({ merged: true, prNumber, mergeMethod });
+      } catch (e: any) {
+        set.status = 400;
+        return err(e.message ?? "Failed to merge pull request");
+      }
+    })
+  )
+
   // ── Commits: by project ───────────────────────────────────────────────────────
   .get("/projects/:id/commits", async ({ params, query }: any) => {
     const [settings] = await db.select().from(projectGithubSettings)
@@ -310,6 +497,43 @@ export const githubRouter = new Elysia()
       return ok(commits);
     } catch (e: any) {
       return err(e.message ?? "Failed to fetch commits");
+    }
+  })
+
+  // ── Commit detail (stats + files) ────────────────────────────────────────────
+  .get("/projects/:id/commits/:sha", async ({ params }: any) => {
+    const [settings] = await db.select().from(projectGithubSettings)
+      .where(eq(projectGithubSettings.projectId, Number(params.id)));
+
+    if (!settings?.accessToken) return err("GitHub token not connected");
+    if (!settings.repoOwner || !settings.repoName) return err("GitHub repo not configured");
+
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/${settings.repoOwner}/${settings.repoName}/commits/${params.sha}`,
+        { headers: GH_HEADERS(settings.accessToken) },
+      );
+      if (!res.ok) return err(`GitHub API error ${res.status}`);
+      const c = await res.json() as any;
+      return ok({
+        sha: c.sha?.slice(0, 7),
+        fullSha: c.sha,
+        message: c.commit?.message ?? "",
+        stats: {
+          additions: c.stats?.additions ?? 0,
+          deletions: c.stats?.deletions ?? 0,
+          total: c.stats?.total ?? 0,
+        },
+        files: (c.files ?? []).map((f: any) => ({
+          filename: f.filename,
+          status: f.status,
+          additions: f.additions ?? 0,
+          deletions: f.deletions ?? 0,
+          changes: f.changes ?? 0,
+        })),
+      });
+    } catch (e: any) {
+      return err(e.message ?? "Failed to fetch commit detail");
     }
   })
 

@@ -9,12 +9,23 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:9898";
 
 async function baseRequest<T>(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${BASE}${path}`, {
+    ...init,
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers as Record<string, string> | undefined),
     },
-    ...init,
   });
+}
+
+async function parseResponseBody<T = any>(res: Response): Promise<T | { error: string } | null> {
+  const text = await res.text();
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return { error: text };
+  }
 }
 
 let refreshPromise: Promise<string | null> | null = null;
@@ -31,10 +42,10 @@ async function refreshAccessToken(): Promise<string | null> {
           body: JSON.stringify({ refreshToken }),
         });
 
-        const json = await res.json().catch(() => null);
+        const json = await parseResponseBody<any>(res);
         if (!res.ok) return null;
 
-        const nextToken = json?.data?.accessToken ?? null;
+        const nextToken = (json as any)?.data?.accessToken ?? null;
         if (typeof nextToken === "string" && nextToken.length > 0) {
           syncAccessToken(nextToken);
           return nextToken;
@@ -78,9 +89,9 @@ async function request<T>(path: string, init?: RequestInit, retry = true): Promi
         }
         throw new Error("Unauthorized");
       }
-      const retryJson = await retryRes.json();
-      if (!retryRes.ok) throw new Error(retryJson.error ?? "Request failed");
-      return retryJson;
+      const retryJson = await parseResponseBody<T>(retryRes);
+      if (!retryRes.ok) throw new Error((retryJson as any)?.error ?? "Request failed");
+      return retryJson as T;
     }
 
     if (typeof window !== "undefined") {
@@ -90,9 +101,9 @@ async function request<T>(path: string, init?: RequestInit, retry = true): Promi
     throw new Error("Unauthorized");
   }
 
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error ?? "Request failed");
-  return json;
+  const json = await parseResponseBody<T>(res);
+  if (!res.ok) throw new Error((json as any)?.error ?? "Request failed");
+  return json as T;
 }
 
 export const api = {
@@ -132,6 +143,7 @@ export const requestsApi = {
   close:           (id: number) => api.post<any>(`/requests/${id}/close`, {}),
   addComment: (id: number, commentText: string) => api.post<any>(`/requests/${id}/comments`, { commentText }),
   linkProject: (id: number, projectId: number | null) => api.patch<any>(`/requests/${id}`, { projectId }),
+  unlinkProject: (id: number) => api.post<any>(`/requests/${id}/unlink-project`, {}),
 };
 
 export const mitApi = {
@@ -150,7 +162,13 @@ export const mitApi = {
 };
 
 export const workflowApi = {
-  steps: () => api.get<WorkflowStepDto[]>("/workflow-steps"),
+  steps: async () => {
+    const res = await api.get<any>("/workflow-steps");
+    if (Array.isArray(res)) return res as WorkflowStepDto[];
+    if (Array.isArray(res?.data)) return res.data as WorkflowStepDto[];
+    if (Array.isArray(res?.data?.data)) return res.data.data as WorkflowStepDto[];
+    return [];
+  },
 };
 
 export const workloadApi = {
@@ -223,12 +241,10 @@ export const githubApi = {
   getMitCommits: (mitId: number) =>
     api.get<any>(`/mit-items/${mitId}/commits`),
   connectUrl: (projectId: number) => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("rm_access_token") ?? "" : "";
-    return `${BASE}/auth/github/connect?projectId=${projectId}&token=${encodeURIComponent(token)}`;
+    return `${BASE}/auth/github/connect?projectId=${projectId}`;
   },
   connectSystemUrl: () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("rm_access_token") ?? "" : "";
-    return `${BASE}/auth/github/connect?system=true&token=${encodeURIComponent(token)}`;
+    return `${BASE}/auth/github/connect?system=true`;
   },
   // Git operations on MIT items
   createBranch: (mitId: number, branchName?: string) =>
@@ -239,6 +255,19 @@ export const githubApi = {
     api.post<any>(`/mit-items/${mitId}/github/merge-pr`, {}),
   deleteBranch: (mitId: number) =>
     request<any>(`/mit-items/${mitId}/github/delete-branch`, { method: "DELETE" }),
+  // Project-level branch / PR operations
+  listBranches: (projectId: number) =>
+    api.get<any>(`/projects/${projectId}/github/branches`),
+  createProjectBranch: (projectId: number, body: { branchName: string; baseBranch?: string }) =>
+    api.post<any>(`/projects/${projectId}/github/branches`, body),
+  deleteProjectBranch: (projectId: number, branchName: string) =>
+    request<any>(`/projects/${projectId}/github/branches/${encodeURIComponent(branchName)}`, { method: "DELETE" }),
+  listPulls: (projectId: number, state: "open" | "closed" = "open") =>
+    api.get<any>(`/projects/${projectId}/github/pulls?state=${state}`),
+  createPull: (projectId: number, body: { title: string; head: string; base?: string; body?: string }) =>
+    api.post<any>(`/projects/${projectId}/github/pulls`, body),
+  mergePull: (projectId: number, prNumber: number, body: { mergeMethod?: string }) =>
+    request<any>(`/projects/${projectId}/github/pulls/${prNumber}/merge`, { method: "PUT", body: JSON.stringify(body) }),
   // Create GitHub repo for a project
   createRepo: (projectId: number, body: {
     repoName: string;
@@ -306,15 +335,15 @@ export const meetingsApi = {
 export const authApi = {
   login: (email: string, password: string) =>
     baseRequest<any>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }).then(async (res) => {
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Request failed");
+      const json = await parseResponseBody<any>(res);
+      if (!res.ok) throw new Error((json as any)?.error ?? "Request failed");
       return json;
     }),
   me: () => api.get<any>("/auth/me"),
   refresh: (refreshToken: string) =>
     baseRequest<any>("/auth/refresh", { method: "POST", body: JSON.stringify({ refreshToken }) }).then(async (res) => {
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Request failed");
+      const json = await parseResponseBody<any>(res);
+      if (!res.ok) throw new Error((json as any)?.error ?? "Request failed");
       return json;
     }),
   logout: () => api.post<any>("/auth/logout", {}),

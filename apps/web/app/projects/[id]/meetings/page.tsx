@@ -40,7 +40,7 @@ export default function MeetingsPage({ params }: { params: { id: string } }) {
     queryKey: ["meetings", projectId],
     queryFn: () => meetingsApi.list(projectId),
   });
-  const meetings: any[] = data?.data ?? [];
+  const meetings: any[] = data?.data?.items ?? data?.data ?? [];
 
   const createMutation = useMutation({
     mutationFn: () => meetingsApi.create(projectId, { title, startAt, endAt: endAt || undefined, meetingUrl: meetingUrl || undefined }),

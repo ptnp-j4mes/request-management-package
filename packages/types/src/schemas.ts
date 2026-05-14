@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   RequestType, RequestStatus, RequestChannel, Priority, Urgency, BusinessImpact,
   MitItemType, MitStatus, WorkflowStepCode, HandoffStatus, AcceptanceAction,
-  UatResultStatus, MaType, BotMessageType,
+  UatResultStatus, MaType, BotMessageType, ProjectTaskType, ProjectTaskStatus,
 } from "./enums";
 
 // ── Users ─────────────────────────────────────────────────────────────────────
@@ -12,9 +12,66 @@ export const CreateUserSchema = z.object({
   email: z.string().email().optional(),
   roleName: z.string().optional(),
   companyName: z.string().optional(),
+  password: z.string().min(6).optional(),
+  departmentId: z.number().int().positive().optional(),
+  githubUsername: z.string().optional(),
+  isActive: z.boolean().optional(),
+  roleIds: z.array(z.number().int().positive()).optional(),
+  roleCodes: z.array(z.string().min(1)).optional(),
 });
 
 export const UpdateUserSchema = CreateUserSchema.partial();
+
+export const SetUserRolesSchema = z.object({
+  roleIds: z.array(z.number().int().positive()).optional(),
+  roleCodes: z.array(z.string().min(1)).optional(),
+});
+
+export const CreateRoleSchema = z.object({
+  code: z.string().min(2).max(50),
+  name: z.string().min(2).max(100),
+  description: z.string().optional(),
+});
+
+export const UpdateRoleSchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  description: z.string().optional(),
+});
+
+export const CreateWorkflowSchema = z.object({
+  name: z.string().min(2).max(100),
+  description: z.string().optional(),
+  isDefault: z.boolean().optional(),
+});
+
+export const UpdateWorkflowSchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  description: z.string().optional(),
+  isDefault: z.boolean().optional(),
+});
+
+export const CreateWorkflowStepSchema = z.object({
+  stepCode: z.string().min(1).max(20),
+  stepName: z.string().min(2).max(100),
+  stepOrder: z.number().int().nonnegative(),
+  isTerminal: z.boolean().optional(),
+});
+
+export const UpdateWorkflowStepSchema = z.object({
+  stepCode: z.string().min(1).max(20).optional(),
+  stepName: z.string().min(2).max(100).optional(),
+  stepOrder: z.number().int().nonnegative().optional(),
+  isTerminal: z.boolean().optional(),
+});
+
+export const ReorderWorkflowStepsSchema = z.object({
+  steps: z.array(
+    z.object({
+      id: z.number().int().positive(),
+      stepOrder: z.number().int().nonnegative(),
+    }),
+  ).min(1),
+});
 
 // ── Projects ──────────────────────────────────────────────────────────────────
 export const CreateProjectSchema = z.object({
@@ -23,6 +80,11 @@ export const CreateProjectSchema = z.object({
   customerName: z.string().optional(),
   startDate: z.string().optional(),
   goLiveDate: z.string().optional(),
+});
+
+export const UpdateProjectStatusSchema = z.object({
+  status: z.enum(["active", "on_hold", "completed", "cancelled"]),
+  note: z.string().optional(),
 });
 
 export const AddProjectMemberSchema = z.object({
@@ -70,7 +132,7 @@ export const CreateUatTestResultSchema = z.object({
 
 // ── Requests ──────────────────────────────────────────────────────────────────
 export const CreateRequestSchema = z.object({
-  projectId: z.number().int().positive(),
+  projectId: z.number().int().positive().nullable().optional(),
   requesterUserId: z.number().int().positive().optional(),
   channel: RequestChannel,
   requestType: RequestType,
@@ -89,6 +151,12 @@ export const UpdateRequestSchema = CreateRequestSchema.partial().extend({
   triageResult: z.string().optional(),
   assignedUserId: z.number().int().positive().optional(),
   assignedTeam: z.string().optional(),
+});
+
+export const LinkRequestToProjectSchema = z.object({
+  projectId: z.number().int().positive().nullable(),
+  createProject: z.boolean().optional(),
+  project: CreateProjectSchema.partial().optional(),
 });
 
 export const RequestFilterSchema = z.object({
@@ -114,6 +182,25 @@ export const CreateMitItemSchema = z.object({
   plannedEndDate: z.string().optional(),
   estimatedHours: z.number().positive().optional(),
 });
+
+export const CreateProjectTaskSchema = z.object({
+  projectId: z.number().int().positive(),
+  requestId: z.number().int().positive().optional().nullable(),
+  mitItemId: z.number().int().positive().optional().nullable(),
+  parentTaskId: z.number().int().positive().optional().nullable(),
+  title: z.string().min(2).max(255),
+  description: z.string().optional(),
+  featureName: z.string().optional(),
+  moduleName: z.string().optional(),
+  taskType: ProjectTaskType.optional(),
+  status: ProjectTaskStatus.optional(),
+  priority: Priority.optional(),
+  assignedUserId: z.number().int().positive().optional().nullable(),
+  dueDate: z.string().optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+export const UpdateProjectTaskSchema = CreateProjectTaskSchema.partial();
 
 export const AssignMitSchema = z.object({
   userId: z.number().int().positive(),

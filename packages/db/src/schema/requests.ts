@@ -9,7 +9,7 @@ import { maintenanceAgreements } from "./maintenance";
 export const requests = pgTable("requests", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   requestNo: varchar("request_no", { length: 50 }).notNull().unique(),
-  projectId: bigint("project_id", { mode: "number" }).notNull().references(() => projects.id),
+  projectId: bigint("project_id", { mode: "number" }).references(() => projects.id),
   requesterUserId: bigint("requester_user_id", { mode: "number" }).references(() => users.id),
   assignedUserId: bigint("assigned_user_id", { mode: "number" }).references(() => users.id),
   approverId: bigint("approver_id", { mode: "number" }).references(() => users.id),
@@ -24,7 +24,7 @@ export const requests = pgTable("requests", {
   businessImpact: varchar("business_impact", { length: 20 }),
   urgency: varchar("urgency", { length: 20 }),
   priority: varchar("priority", { length: 20 }),
-  status: varchar("status", { length: 30 }).notNull().default("new"),
+  status: varchar("status", { length: 30 }).notNull().default("draft"),
   triageResult: varchar("triage_result", { length: 30 }),
   assignedTeam: varchar("assigned_team", { length: 50 }),
   uatCycleId: bigint("uat_cycle_id", { mode: "number" }).references(() => uatCycles.id),

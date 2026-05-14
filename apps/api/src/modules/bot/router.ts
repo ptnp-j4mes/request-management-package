@@ -24,7 +24,12 @@ export const botRouter = new Elysia({ prefix: "/bot" })
     return ok(created);
   })
   .post("/messages", async ({ body }: any) => {
-    const [created] = await db.insert(botMessages).values(body).returning();
+    const sessionId = Number(body?.sessionId);
+    const messageType = String(body?.messageType ?? "").trim();
+    const messageText = String(body?.messageText ?? "").trim();
+    if (!Number.isFinite(sessionId) || sessionId <= 0) return err("sessionId is required");
+    if (!messageType || !messageText) return err("messageType and messageText are required");
+    const [created] = await db.insert(botMessages).values({ ...body, sessionId, messageType, messageText }).returning();
     return ok(created);
   })
   .get("/requests", async () => {
@@ -32,6 +37,17 @@ export const botRouter = new Elysia({ prefix: "/bot" })
   })
   .post("/requests", async ({ body }: any) => {
     const requestNo = `BOT-${Date.now()}`;
-    const [created] = await db.insert(botRequests).values({ ...body, requestNo }).returning();
+    const sessionId = Number(body?.sessionId);
+    const requestMode = String(body?.requestMode ?? "").trim();
+    if (!Number.isFinite(sessionId) || sessionId <= 0) return err("sessionId is required");
+    if (!requestMode) return err("requestMode is required");
+    if (body?.requestPayload == null) return err("requestPayload is required");
+    const [created] = await db.insert(botRequests).values({
+      ...body,
+      sessionId,
+      requestMode,
+      requestNo,
+      requestPayload: body.requestPayload,
+    }).returning();
     return ok(created);
   });

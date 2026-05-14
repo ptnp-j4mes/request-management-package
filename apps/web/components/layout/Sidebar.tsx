@@ -32,8 +32,8 @@ const NAV: NavItem[] = [
   { href: "/performance", label: "Performance",  icon: BarChart3,       group: "Analytics", roles: ["IT_MANAGER","ADMIN"] },
   { href: "/reports/git/by-project", label: "Git Report", icon: GitBranch, group: "Analytics", roles: ["ADMIN","IT_MANAGER","BA","FULLSTACK"] },
   { href: "/bot",         label: "Bot Sessions", icon: Bot,             group: "Analytics", roles: ["IT_MANAGER","ADMIN","BA","FULLSTACK"] },
-  { href: "/settings",    label: "Settings",     icon: UserCog,         group: "System" },
-  { href: "/admin",       label: "Admin",        icon: Settings,        group: "System", roles: ["ADMIN"] },
+  { href: "/settings",    label: "Settings",     icon: Settings,        group: "System" },
+  { href: "/admin",       label: "Admin",        icon: UserCog,         group: "System", roles: ["ADMIN"] },
 ];
 
 const GROUP_ORDER = ["Workspace", "Work", "Analytics", "System"];

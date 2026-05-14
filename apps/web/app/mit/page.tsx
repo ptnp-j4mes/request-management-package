@@ -40,9 +40,9 @@ export default function MitBoardPage() {
     queryFn: workflowApi.steps,
   });
 
-  const items: any[] = data?.data?.items ?? [];
-  const projects = projectsData?.data ?? [];
-  const workflowSteps = workflowStepsData ?? [];
+  const items: any[] = Array.isArray(data?.data?.items) ? data.data.items : [];
+  const projects = Array.isArray(projectsData?.data) ? projectsData.data : [];
+  const workflowSteps = Array.isArray(workflowStepsData) ? workflowStepsData : [];
   const stepCodes = workflowSteps.map((step) => step.stepCode);
 
   const byStep = stepCodes.reduce<Record<string, any[]>>((acc, s) => {

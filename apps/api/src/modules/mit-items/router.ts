@@ -1,4 +1,5 @@
 import { Elysia } from "elysia";
+import dayjs from "dayjs";
 import { db } from "../../lib/db";
 import { mitItems, mitStepAssignments, mitStatusHistory, mitHandoffs } from "@rm/db";
 import { ok, paginated, err } from "../../lib/response";
@@ -37,11 +38,26 @@ export const mitItemsRouter = new Elysia({ prefix: "/mit-items" })
     return ok({ ...mit, assignments, history, handoffs });
   })
   .post("/", async ({ body }: any) => {
+    const projectId = Number(body?.projectId);
+    const itemType = String(body?.itemType ?? "").trim();
+    const title = String(body?.title ?? "").trim();
+    if (!Number.isFinite(projectId) || projectId <= 0) return err("projectId is required");
+    if (!itemType || !title) return err("itemType and title are required");
+
     const now = new Date();
     const year = now.getFullYear();
     const [{ total }] = await db.select({ total: count() }).from(mitItems);
     const mitNo = `MIT-${year}${String(Number(total) + 1).padStart(4, "0")}`;
-    const [created] = await db.insert(mitItems).values({ ...body, mitNo, currentStatus: "new" }).returning();
+    const [created] = await db.insert(mitItems).values({
+      ...body,
+      projectId,
+      itemType,
+      title,
+      mitNo,
+      currentStatus: "new",
+      plannedStartDate: body?.plannedStartDate ? dayjs(String(body.plannedStartDate)).isValid() ? dayjs(String(body.plannedStartDate)).format("YYYY-MM-DD") : null : null,
+      plannedEndDate: body?.plannedEndDate ? dayjs(String(body.plannedEndDate)).isValid() ? dayjs(String(body.plannedEndDate)).format("YYYY-MM-DD") : null : null,
+    }).returning();
     return ok(created);
   })
   .patch("/:id", async ({ params, body }: any) => {

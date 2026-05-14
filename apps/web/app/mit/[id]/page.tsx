@@ -33,7 +33,7 @@ export default function MitDetailPage({ params }: { params: { id: string } }) {
     queryFn: workflowApi.steps,
   });
   const mit = data?.data;
-  const workflowSteps = workflowStepsData ?? [];
+  const workflowSteps = Array.isArray(workflowStepsData) ? workflowStepsData : [];
 
   const { data: commitsData, isLoading: commitsLoading, refetch: refetchCommits } = useQuery({
     queryKey: ["mit-commits", params.id],
@@ -41,7 +41,7 @@ export default function MitDetailPage({ params }: { params: { id: string } }) {
     enabled: !!mit,
     retry: false,
   });
-  const commits: any[] = commitsData?.data?.commits ?? [];
+  const commits: any[] = Array.isArray(commitsData?.data?.commits) ? commitsData.data.commits : [];
   const commitsError = commitsData?.success === false ? commitsData?.error : null;
 
   const createBranchMutation = useMutation({
@@ -230,7 +230,7 @@ export default function MitDetailPage({ params }: { params: { id: string } }) {
           <GlassCard>
             <h2 className="text-sm font-semibold text-white/70 mb-3">Assignments ({mit.assignments?.length ?? 0})</h2>
             <div className="space-y-2 text-sm">
-              {(mit.assignments ?? []).map((a: any) => (
+              {(Array.isArray(mit.assignments) ? mit.assignments : []).map((a: any) => (
                 <div key={a.id} className="flex items-center justify-between rounded-xs bg-white/[.04] px-3 py-2 border border-white/[.06]">
                   <div>
                     <span className="text-white/60 capitalize text-xs">{a.assignedRole}</span>
@@ -247,7 +247,7 @@ export default function MitDetailPage({ params }: { params: { id: string } }) {
           <GlassCard>
             <h2 className="text-sm font-semibold text-white/70 mb-3">Handoffs ({mit.handoffs?.length ?? 0})</h2>
             <div className="space-y-2 text-xs">
-              {(mit.handoffs ?? []).map((h: any) => (
+              {(Array.isArray(mit.handoffs) ? mit.handoffs : []).map((h: any) => (
                 <div key={h.id} className="rounded-xs bg-white/[.04] px-3 py-2 border border-white/[.06]">
                   <div className="flex items-center gap-1.5 text-white/60">
                     <span>Step {h.fromStepId}</span>
@@ -269,7 +269,7 @@ export default function MitDetailPage({ params }: { params: { id: string } }) {
               <h2 className="text-sm font-semibold text-white/70">Status History</h2>
             </div>
             <div className="space-y-2 text-xs">
-              {(mit.history ?? []).map((h: any) => (
+              {(Array.isArray(mit.history) ? mit.history : []).map((h: any) => (
                 <div key={h.id}>
                   <div className="flex items-center gap-1.5 text-white/60">
                     <span className="text-white/30">{h.oldStatus ?? "—"}</span>

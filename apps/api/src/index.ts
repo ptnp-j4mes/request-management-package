@@ -10,13 +10,16 @@ import { maRouter } from "./modules/maintenance-agreements/router";
 import { uatRouter } from "./modules/uat/router";
 import { requestsRouter } from "./modules/requests/router";
 import { mitItemsRouter } from "./modules/mit-items/router";
+import { projectTasksRouter } from "./modules/project-tasks/router";
 import { workflowRouter } from "./modules/workflow/router";
+import { rolesRouter } from "./modules/roles/router";
 import { workloadRouter } from "./modules/workload/router";
 import { botRouter } from "./modules/bot/router";
 import { performanceRouter } from "./modules/performance/router";
 import { meetingsRouter } from "./modules/meetings/router";
 import { githubRouter } from "./modules/github/router";
 import { gitReportsRouter } from "./modules/reports/git.router";
+import { executiveReportsRouter } from "./modules/reports/executive.router";
 
 const app = new Elysia()
   .use(cors({
@@ -34,13 +37,16 @@ const app = new Elysia()
   .use(uatRouter)
   .use(requestsRouter)
   .use(mitItemsRouter)
+  .use(projectTasksRouter)
   .use(workflowRouter)
+  .use(rolesRouter)
   .use(workloadRouter)
   .use(botRouter)
   .use(performanceRouter)
   .use(meetingsRouter)
   .use(githubRouter)
   .use(gitReportsRouter)
+  .use(executiveReportsRouter)
   .onError(({ error, code }) => {
     console.error(`[${code}]`, error);
     return { success: false, error: String(error) };

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import {
@@ -1100,6 +1100,7 @@ function SettingsInner() {
   const searchParams = useSearchParams();
 
   const queryTab = searchParams.get("tab");
+  const githubError = searchParams.get("github_error");
   const initialView: ActiveView = queryTab === "github" || queryTab === "bots" || queryTab === "system" ? "system" : "user";
   const [activeView, setActiveView] = useState<ActiveView>(initialView);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -1113,13 +1114,30 @@ function SettingsInner() {
     setActiveView(initialView);
   }, [initialView]);
 
-  const pushToast = (kind: ToastKind, title: string, message: string) => {
+  const pushToast = useCallback((kind: ToastKind, title: string, message: string) => {
     const id = Date.now() + Math.floor(Math.random() * 1000);
     setToasts((current) => [{ id, kind, title, message }, ...current].slice(0, 3));
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 4200);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!githubError) return;
+
+    const messageMap: Record<string, string> = {
+      missing_or_invalid_refresh_token: "GitHub connect failed because your session cookie was missing or expired. Please sign in again and retry.",
+      invalid_state: "GitHub connect failed because the OAuth state was invalid.",
+      token_exchange_failed: "GitHub connect failed while exchanging the OAuth code.",
+      no_token: "GitHub connect failed because GitHub did not return an access token.",
+    };
+
+    pushToast(
+      "error",
+      "GitHub connect failed",
+      messageMap[githubError] ?? `GitHub connect failed: ${githubError}`,
+    );
+  }, [githubError, pushToast]);
 
   const background = useMemo(
     () => (activeView === "system" ? "from-slate-950 via-blue-950 to-cyan-900" : "from-indigo-950 via-blue-950 to-purple-950"),
@@ -1160,6 +1178,12 @@ function SettingsInner() {
             setSaveSystemKey((key) => key + 1);
           }}
         />
+
+        {githubError && (
+          <div className="rounded-2xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+            GitHub connect failed: {githubError.replaceAll("_", " ")}
+          </div>
+        )}
 
         {searchParams.get("connected") && (
           <div className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100">

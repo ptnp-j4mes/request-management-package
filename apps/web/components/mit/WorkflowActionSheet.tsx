@@ -47,7 +47,9 @@ export function WorkflowActionSheet({ mitId, currentUserId, steps = [], onClose 
   });
 
   const candidates: AssignableUser[] = selectedStepId && !candidateQuery.isFetching
-    ? candidateQuery.data?.data?.data ?? []
+    ? Array.isArray(candidateQuery.data?.data?.data)
+      ? candidateQuery.data.data.data
+      : []
     : [];
 
   useEffect(() => {
@@ -132,16 +134,16 @@ export function WorkflowActionSheet({ mitId, currentUserId, steps = [], onClose 
               <GlassSelect
                 value={form.stepId}
                 onChange={(e) => setForm((f) => ({ ...f, stepId: e.target.value, userId: "" }))}
-                options={steps.map((s) => ({ value: String(s.id), label: `${s.stepCode} – ${s.stepName}` }))}
+                options={(Array.isArray(steps) ? steps : []).map((s) => ({ value: String(s.id), label: `${s.stepCode} – ${s.stepName}` }))}
                 placeholder="Select step…"
               />
               <GlassSelect
                 value={form.userId}
                 onChange={(e) => setForm((f) => ({ ...f, userId: e.target.value }))}
-                options={selectedCandidates.map((u) => ({
+                options={Array.isArray(selectedCandidates) ? selectedCandidates.map((u) => ({
                   value: String(u.id),
                   label: `${u.fullName}${u.eligibilityReason === "FULLSTACK" ? " (Fullstack)" : ""}`,
-                }))}
+                })) : []}
                 placeholder={selectedStepId ? "Select user…" : "Pick a step first"}
                 disabled={!selectedStepId || selectedCandidates.length === 0}
               />
@@ -159,16 +161,16 @@ export function WorkflowActionSheet({ mitId, currentUserId, steps = [], onClose 
               <GlassSelect
                 value={form.toStepId}
                 onChange={(e) => setForm((f) => ({ ...f, toStepId: e.target.value, toUserId: "" }))}
-                options={steps.map((s) => ({ value: String(s.id), label: `${s.stepCode} – ${s.stepName}` }))}
+                options={(Array.isArray(steps) ? steps : []).map((s) => ({ value: String(s.id), label: `${s.stepCode} – ${s.stepName}` }))}
                 placeholder="To step…"
               />
               <GlassSelect
                 value={form.toUserId}
                 onChange={(e) => setForm((f) => ({ ...f, toUserId: e.target.value }))}
-                options={selectedCandidates.map((u) => ({
+                options={Array.isArray(selectedCandidates) ? selectedCandidates.map((u) => ({
                   value: String(u.id),
                   label: `${u.fullName}${u.eligibilityReason === "FULLSTACK" ? " (Fullstack)" : ""}`,
-                }))}
+                })) : []}
                 placeholder={selectedStepId ? "To user…" : "Pick a step first"}
                 disabled={!selectedStepId || selectedCandidates.length === 0}
               />
@@ -195,7 +197,7 @@ export function WorkflowActionSheet({ mitId, currentUserId, steps = [], onClose 
           )}
           {selectedCandidates.length > 0 && (
             <div className="space-y-2">
-              {selectedCandidates.map((u) => (
+              {(Array.isArray(selectedCandidates) ? selectedCandidates : []).map((u) => (
                 <div key={u.id} className="flex items-center justify-between gap-3 rounded-md border border-white/[.06] bg-black/20 px-3 py-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -210,7 +212,7 @@ export function WorkflowActionSheet({ mitId, currentUserId, steps = [], onClose 
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <GlassBadge color={u.eligibilityReason === "FULLSTACK" ? "cyan" : u.eligibilityReason === "PROJECT_MEMBER" ? "blue" : "yellow"} label={u.eligibilityReason} />
-                    {u.roles.slice(0, 2).map((role) => (
+                    {(Array.isArray(u.roles) ? u.roles : []).slice(0, 2).map((role) => (
                       <GlassBadge key={role} color="slate" label={role} />
                     ))}
                   </div>

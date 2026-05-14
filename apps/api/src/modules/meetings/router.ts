@@ -1,4 +1,5 @@
 import { Elysia } from "elysia";
+import dayjs from "dayjs";
 import { db } from "../../lib/db";
 import {
   googleBotAccounts,
@@ -108,13 +109,19 @@ export const meetingsRouter = new Elysia()
     new Elysia()
       .use(authorize(["IT_MANAGER", "BA", "ADMIN"]))
 
-      .post("/projects/:id/meetings", async ({ params, body, user }: any) => {
+  .post("/projects/:id/meetings", async ({ params, body, user }: any) => {
+        const title = String(body?.title ?? "").trim();
+        const startAt = body?.startAt ? dayjs(String(body.startAt)) : null;
+        const endAt = body?.endAt ? dayjs(String(body.endAt)) : null;
+        if (!title) return err("title is required");
+        if (!startAt || !startAt.isValid()) return err("startAt is required");
         const values = {
           ...body,
           projectId: Number(params.id),
           createdBy: user.id,
-          startAt: new Date(body.startAt),
-          endAt: body.endAt ? new Date(body.endAt) : undefined,
+          title,
+          startAt: startAt.toDate(),
+          endAt: endAt && endAt.isValid() ? endAt.toDate() : null,
         };
         const [created] = await db.insert(projectMeetings).values(values).returning();
         return ok(created);
@@ -265,9 +272,11 @@ export const meetingsRouter = new Elysia()
   .post("/projects/:id/meetings/:meetingId/action-items", async ({ params, body }: any) => {
     const meeting = await getMeeting(Number(params.meetingId));
     if (!meeting || meeting.projectId !== Number(params.id)) return err("Meeting not found");
+    const title = String(body?.title ?? "").trim();
+    if (!title) return err("title is required");
     const [created] = await db
       .insert(meetingActionItems)
-      .values({ ...body, meetingId: meeting.id })
+      .values({ ...body, meetingId: meeting.id, title })
       .returning();
     return ok(created);
   })
@@ -315,9 +324,11 @@ export const meetingsRouter = new Elysia()
       })
 
       .post("/google-bot-accounts", async ({ body, user }: any) => {
+        const email = String(body?.email ?? "").trim();
+        if (!email) return err("email is required");
         const [created] = await db
           .insert(googleBotAccounts)
-          .values({ ...body, createdBy: user.id })
+          .values({ ...body, email, createdBy: user.id })
           .returning();
         return ok(created);
       })

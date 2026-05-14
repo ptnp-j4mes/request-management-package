@@ -36,6 +36,37 @@ export type AuthUser = {
   roles: string[];
 };
 
+export type RoleDto = {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+};
+
+export type UserRoleDto = {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+};
+
+export type UserDto = {
+  id: number;
+  username: string;
+  fullName: string;
+  email: string | null;
+  roleName: string | null;
+  companyName: string | null;
+  departmentId: number | null;
+  githubUsername: string | null;
+  isActive: boolean;
+  twoFactorEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  roles: string[];
+};
+
 export type LoginResponse = {
   accessToken: string;
   refreshToken: string;
@@ -58,6 +89,19 @@ export type WorkflowStepDto = {
   stepName: string;
   stepOrder: number;
   isTerminal: boolean;
+};
+
+export type WorkflowDefinitionDto = {
+  id: number;
+  name: string;
+  description: string | null;
+  isDefault: boolean;
+  createdAt: string;
+  stepCount: number;
+};
+
+export type WorkflowDefinitionDetailDto = WorkflowDefinitionDto & {
+  steps: WorkflowStepDto[];
 };
 
 export type AssignableMitUserDto = {
